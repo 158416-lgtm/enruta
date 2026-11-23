@@ -1,0 +1,20 @@
+server:
+  port: ${SERVER_PORT:8090}
+spring:
+  application:
+    name: driver-simulator
+enruta:
+  simulator:
+    tracking-url: ${TRACKING_URL:http://localhost:8084}
+    driver-count: ${SIM_DRIVER_COUNT:6}
+    tick-interval: 2s
+    routes-file: ${SIM_ROUTES_FILE:infra/seed/routes.json}
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true

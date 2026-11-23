@@ -1,0 +1,35 @@
+server:
+  port: ${SERVER_PORT:8083}
+spring:
+  application:
+    name: dispatch-service
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/dispatchdb}
+    username: ${DB_USER:enruta}
+    password: ${DB_PASSWORD:enruta}
+  jpa:
+    open-in-view: false
+  flyway:
+    enabled: true
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:9092}
+    producer:
+      acks: all
+      properties:
+        enable.idempotence: true
+    consumer:
+      auto-offset-reset: earliest
+      max-poll-records: 50
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true

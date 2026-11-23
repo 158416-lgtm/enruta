@@ -1,0 +1,32 @@
+server:
+  port: ${SERVER_PORT:8084}
+spring:
+  application:
+    name: tracking-service
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:9092}
+    producer:
+      acks: all
+      properties:
+        enable.idempotence: true
+    consumer:
+      auto-offset-reset: earliest
+      max-poll-records: 50
+eruta:
+  tracking:
+    ingest:
+      max-points-per-batch: 10
+      max-batches-per-second: 1
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true

@@ -1,0 +1,35 @@
+# Build
+target/
+*.class
+*.jar
+!.mvn/wrapper/maven-wrapper.jar
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.settings/
+.classpath
+.project
+
+# Entorno y secretos
+.env
+.env.local
+*.pem
+*.key
+infra/keys/
+
+# Datos OSRM (se generan con scripts/fetch-osrm.sh)
+infra/osrm/data/
+infra/osrm/cache/
+
+# Frontend
+web/node_modules/
+web/dist/
+web/.vite/
+
+# Logs y artefactos
+*.log
+logs/
+node_modules/
+.DS_Store

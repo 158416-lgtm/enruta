@@ -1,0 +1,325 @@
+name: enruta
+
+# Stack de infraestructura + aplicaciones.
+#
+#   docker compose -f infra/docker-compose.yml up -d --wait            # solo infraestructura
+#   docker compose -f infra/docker-compose.yml --profile app up -d     # + los 7 servicios
+#   docker compose -f infra/docker-compose.yml --profile app --profile obs up -d
+#
+# El perfil "app" requiere haber corrido antes: ./scripts/fetch-osrm.sh
+
+x-app-env: &app-env
+  DB_USER: enruta
+  DB_PASSWORD: enruta
+  KAFKA_BOOTSTRAP: kafka:9092
+  REDIS_HOST: redis
+  REDIS_PORT: "6379"
+  OSRM_BASE_URL: http://osrm:5000
+  MAIL_HOST: mailhog
+  MAIL_PORT: "1025"
+  SPRING_PROFILES_ACTIVE: docker
+
+services:
+  kafka:
+    image: apache/kafka:4.2.2
+    container_name: enruta-kafka
+    ports:
+      # 29092 en el host: los procesos locales (mvn spring-boot:run) se conectan ahi.
+      - "29092:29092"
+    environment:
+      CLUSTER_ID: 4L6g3nShT-eMCtK--X86sw
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_LISTENERS: PLAINTEXT://:9092,EXTERNAL://:29092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,EXTERNAL://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_NUM_PARTITIONS: 3
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      KAFKA_HEAP_OPTS: -Xms256m -Xmx512m
+    volumes:
+      - kafkadata:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+
+  kafka-init:
+    image: apache/kafka:4.2.2
+    container_name: enruta-kafka-init
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: ["bash", "/scripts/topics-init.sh"]
+    environment:
+      KAFKA_BOOTSTRAP: kafka:9092
+      KAFKA_BIN: /opt/kafka/bin
+    volumes:
+      - ./kafka:/scripts:ro
+    restart: "no"
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: enruta-postgres
+    ports:
+      # 5433 en el host: evita chocar con el PostgreSQL del sistema (5432).
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: enruta
+      POSTGRES_PASSWORD: enruta
+      POSTGRES_DB: enruta
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U enruta -d enruta"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+
+  redis:
+    image: redis:7-alpine
+    container_name: enruta-redis
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "no", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    deploy:
+      resources:
+        limits:
+          memory: 320m
+
+  mailhog:
+    image: mailhog/mailhog:v1.0.1
+    container_name: enruta-mailhog
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
+  # Requiere ./scripts/fetch-osrm.sh (recorta el extract de Colombia al casco urbano).
+  osrm:
+    image: osrm/osrm-backend:v5.25.0
+    container_name: enruta-osrm
+    command: ["osrm-routed", "--algorithm", "mld", "--max-table-size", "10000", "/data/fusagasuga.osrm"]
+    volumes:
+      - ./osrm/data:/data:ro
+    ports:
+      - "5000:5000"
+    restart: "no"
+
+  api-gateway:
+    profiles: ["app"]
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args:
+        MODULE: api-gateway
+    container_name: enruta-api-gateway
+    environment:
+      <<: *app-env
+      AUTH_URI: http://auth-service:8081
+      SHIPMENT_URI: http://shipment-service:8082
+      DISPATCH_URI: http://dispatch-service:8083
+      TRACKING_URI: http://tracking-service:8084
+      ROUTING_URI: http://routing-eta-service:8085
+    ports:
+      # 18080 en el host: el 8080 lo ocupa otra aplicacion de la maquina.
+      - "18080:18080"
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:18080/actuator/health | grep -q UP"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+
+  auth-service:
+    profiles: ["app"]
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args:
+        MODULE: auth-service
+    container_name: enruta-auth
+    environment:
+      <<: *app-env
+      DB_URL: jdbc:postgresql://postgres:5432/authdb
+      JWT_ISSUER: http://localhost:18080
+    ports:
+      - "8081:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8081/actuator/health | grep -q UP"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+
+  shipment-service:
+    profiles: ["app"]
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args:
+        MODULE: shipment-service
+    container_name: enruta-shipment
+    environment:
+      <<: *app-env
+      DB_URL: jdbc:postgresql://postgres:5432/shipmentdb
+    ports:
+      - "8082:8082"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8082/actuator/health | grep -q UP"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+
+  dispatch-service:
+    profiles: ["app"]
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args:
+        MODULE: dispatch-service
+    container_name: enruta-dispatch
+    environment:
+      <<: *app-env
+      DB_URL: jdbc:postgresql://postgres:5432/dispatchdb
+    ports:
+      - "8083:8083"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8083/actuator/health | grep -q UP"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+
+  tracking-service:
+    profiles: ["app"]
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args:
+        MODULE: tracking-service
+    container_name: enruta-tracking
+    environment:
+      <<: *app-env
+    ports:
+      - "8084:8084"
+    depends_on:
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8084/actuator/health | grep -q UP"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+
+  routing-eta-service:
+    profiles: ["app"]
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args:
+        MODULE: routing-eta-service
+    container_name: enruta-routing
+    environment:
+      <<: *app-env
+    ports:
+      - "8085:8085"
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8085/actuator/health | grep -q UP"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+
+  notification-service:
+    profiles: ["app"]
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args:
+        MODULE: notification-service
+    container_name: enruta-notification
+    environment:
+      <<: *app-env
+      DB_URL: jdbc:postgresql://postgres:5432/notifdb
+      WEBHOOK_SECRET: ${WEBHOOK_SECRET:-change-me}
+    ports:
+      - "8086:8086"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8086/actuator/health | grep -q UP"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+
+  driver-simulator:
+    profiles: ["app"]
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args:
+        MODULE: driver-simulator
+    container_name: enruta-simulator
+    environment:
+      TRACKING_URL: http://tracking-service:8084
+      SIM_DRIVER_COUNT: "6"
+    ports:
+      - "8090:8090"
+    depends_on:
+      tracking-service:
+        condition: service_healthy
+
+volumes:
+  kafkadata:
+  pgdata:
