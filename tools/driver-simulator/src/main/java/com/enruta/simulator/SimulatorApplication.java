@@ -3,6 +3,7 @@ package com.enruta.simulator;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
  * Simulador de conductores para la demo.
@@ -12,6 +13,7 @@ import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
  */
 @SpringBootApplication(scanBasePackages = "com.enruta")
 @ConfigurationPropertiesScan
+@EnableScheduling
 public class SimulatorApplication {
 
     public static void main(String[] args) {

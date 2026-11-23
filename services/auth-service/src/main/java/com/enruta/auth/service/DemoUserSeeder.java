@@ -6,6 +6,7 @@ import com.enruta.auth.repository.UserRepository;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -18,43 +19,45 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * Usuarios de demo, idempotente.
  *
- * <p>En una aplicacion real esto seria una migracion con invitacion o un alta administrativa; en la
- * demo necesitamos credenciales reproducibles para el guion de la exposicion.
+ * <p>Los conductores usan UUID fijos que coinciden con los de dispatch: auth posee credenciales,
+ * dispatch posee perfil y disponibilidad, y el id es la identidad compartida.
  */
 @Component
 public class DemoUserSeeder implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(DemoUserSeeder.class);
 
-    private record Seed(String email, String password, String name, EnumSet<Role> roles) {}
+    private record Seed(UUID id, String email, String password, String name, EnumSet<Role> roles) {}
 
     private static final List<Seed> SEEDS =
             List.of(
                     new Seed(
+                            null,
                             "admin@enruta.test",
                             "Admin1234!",
                             "Administradora EnRuta",
                             EnumSet.of(Role.ADMIN)),
                     new Seed(
+                            null,
                             "cliente@enruta.test",
                             "Cliente1234!",
                             "Camila Cliente",
                             EnumSet.of(Role.CLIENT)),
-                    new Seed(
-                            "driver1@enruta.test",
-                            "Driver1234!",
-                            "Ana Repartidora",
-                            EnumSet.of(Role.DRIVER)),
-                    new Seed(
-                            "driver2@enruta.test",
-                            "Driver1234!",
-                            "Beto Repartidor",
-                            EnumSet.of(Role.DRIVER)),
-                    new Seed(
-                            "driver3@enruta.test",
-                            "Driver1234!",
-                            "Carla Repartidora",
-                            EnumSet.of(Role.DRIVER)));
+                    driver(1, "Ana Repartidora"),
+                    driver(2, "Beto Repartidor"),
+                    driver(3, "Carla Repartidora"),
+                    driver(4, "Diego Repartidor"),
+                    driver(5, "Elena Repartidora"),
+                    driver(6, "Fabio Repartidor"));
+
+    private static Seed driver(int number, String name) {
+        return new Seed(
+                UUID.fromString("11111111-1111-1111-1111-11111111110" + number),
+                "driver" + number + "@enruta.test",
+                "Driver1234!",
+                name,
+                EnumSet.of(Role.DRIVER));
+    }
 
     private final UserRepository users;
     private final PasswordEncoder passwordEncoder;
@@ -82,6 +85,7 @@ public class DemoUserSeeder implements ApplicationRunner {
             }
             User user =
                     new User(
+                            seed.id() == null ? UUID.randomUUID() : seed.id(),
                             email,
                             passwordEncoder.encode(seed.password()),
                             seed.name(),

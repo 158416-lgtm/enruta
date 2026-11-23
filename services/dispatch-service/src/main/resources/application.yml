@@ -4,11 +4,17 @@ spring:
   application:
     name: dispatch-service
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/dispatchdb}
+    url: ${DB_URL:jdbc:postgresql://localhost:5433/dispatchdb}
     username: ${DB_USER:enruta}
     password: ${DB_PASSWORD:enruta}
   jpa:
     open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
   flyway:
     enabled: true
   data:
@@ -16,14 +22,32 @@ spring:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
   kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:9092}
+    bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:29092}
     producer:
       acks: all
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
       properties:
         enable.idempotence: true
     consumer:
       auto-offset-reset: earliest
       max-poll-records: 50
+      properties:
+        session.timeout.ms: 10000
+        heartbeat.interval.ms: 3000
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${AUTH_JWKS_URI:http://localhost:8081/api/v1/auth/jwks}
+enruta:
+  outbox:
+    enabled: true
+    poll-interval-ms: 500
+  dispatch:
+    seed: ${DISPATCH_SEED:true}
+    expiry-poll-ms: 1000
+    expiry-initial-delay-ms: 3000
 management:
   endpoints:
     web:

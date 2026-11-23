@@ -99,12 +99,14 @@ Comprobado en esta máquina, no solo compilado:
 
 | Elemento | Resultado |
 |---|---|
-| Build | `mvn verify` verde, 12 módulos, 26 tests (incluye IT con PostgreSQL en Testcontainers) |
+| Build | `mvn verify` verde, 12 módulos, 48 tests (incluye IT con PostgreSQL y Redis en Testcontainers) |
 | Kafka | healthy; 9 tópicos creados (`tracking.gps.raw` con 6 particiones, retención 1 h) |
 | PostgreSQL | healthy; 4 bases (`authdb`, `shipmentdb`, `dispatchdb`, `notifdb`) |
 | Redis / MailHog | healthy |
 | OSRM | extract de Fusagasugá generado (4,3 MB desde 320 MB de Colombia) y ruta real: **2,27 km / 237 s** |
 | S1 de punta a punta | login → crear envío → outbox → relay → evento en `shipment.events`, con replay idempotente |
+| S2 de punta a punta | 6 conductores simulados por calles reales → oferta al más cercano → aceptación → `ASSIGNED` en ~8 s, con `dispatch.offer-created` y `dispatch.assigned` en Kafka |
+| Concurrencia | 50 hilos aceptando la misma oferta: **1 ganador, 49 conflictos, 1 asignación activa** |
 
 > **Docker 29 + Testcontainers:** el cliente de Testcontainers usa API 1.32 y Docker 29 exige
 > 1.44. En esta máquina se resolvió con `~/.docker-java.properties` → `api.version=1.44`.
@@ -116,7 +118,7 @@ Comprobado en esta máquina, no solo compilado:
 |---|---|---|
 | S0 | Esqueleto, compose, CI, ADRs | ✅ |
 | S1 | auth + gateway + shipment (máquina de estados, outbox, idempotencia) | ✅ |
-| S2 | dispatch (ofertas, timeout, anti-doble-asignación) + simulador | ⏳ |
+| S2 | dispatch (ofertas, timeout, anti-doble-asignación) + simulador | ✅ |
 | S3 | tracking (ingesta, Redis GEO, WebSocket, geofences) | ⏳ |
 | S4 | routing/ETA + OSRM + circuit breaker | ⏳ |
 | S5 | notifications (reintentos, DLQ, MailHog) | ⏳ |
@@ -135,6 +137,23 @@ Comprobado en esta máquina, no solo compilado:
 | POST | `/api/v1/shipments` | **requiere `Idempotency-Key`** |
 | GET | `/api/v1/shipments/{id}` | dueño, conductor asignado o admin |
 | POST | `/api/v1/shipments/{id}/cancel` | cliente hasta `ASSIGNED`; admin hasta `IN_TRANSIT` |
+| POST | `/api/v1/drivers/{id}/location` | el conductor reporta posición (202) |
+| POST | `/api/v1/drivers/{id}/availability` | `AVAILABLE` / `BUSY` / `OFFLINE` |
+| GET | `/api/v1/drivers/{id}/offers` | ofertas vigentes del conductor |
+| POST | `/api/v1/offers/{id}/accept` | doble barrera; 409 si te adelantaron |
+| POST | `/api/v1/offers/{id}/reject` | pasa al siguiente candidato |
+| POST | `/api/v1/assignments/{id}/cancel` | compensación de la saga |
+| GET | `/api/v1/dispatch/shipments/{id}` | fase, ronda y oferta actual (diagnóstico) |
+
+### Flujo de asignación
+
+1. El cliente crea el envío (`CREATED`).
+2. `dispatch` consume `shipment.created`, busca con Redis GEO y oferta al mejor candidato
+   (70% cercanía, 30% calificación), 15 s de vigencia.
+3. El conductor acepta: Redis `SET NX` + `UPDATE ... WHERE status='CREATED'` + índice único parcial.
+4. `dispatch.assigned` → el envío pasa a `ASSIGNED`.
+5. Si la oferta vence, se prueba el siguiente candidato; 3 por ronda, radios 1,5 → 3 → 5 km.
+6. Si el conductor abandona: `dispatch.assignment-cancelled` → vuelve a `CREATED` y se re-oferta.
 
 Usuarios de demo (`enruta.auth.seed=true`): `admin@enruta.test` / `Admin1234!`,
 `cliente@enruta.test` / `Cliente1234!`, `driver{1..3}@enruta.test` / `Driver1234!`.

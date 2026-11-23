@@ -105,6 +105,12 @@ public class Shipment {
         this.driverId = driverId;
     }
 
+    /** Compensacion: el conductor se cayo antes de recoger; vuelve a estar sin asignar. */
+    public void unassign() {
+        transitionTo(ShipmentStatus.CREATED);
+        this.driverId = null;
+    }
+
     public UUID getId() {
         return id;
     }

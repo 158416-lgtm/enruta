@@ -28,6 +28,9 @@ spring:
     consumer:
       auto-offset-reset: earliest
       max-poll-records: 50
+      properties:
+        session.timeout.ms: 10000
+        heartbeat.interval.ms: 3000
   security:
     oauth2:
       resourceserver:

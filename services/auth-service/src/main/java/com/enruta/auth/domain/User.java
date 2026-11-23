@@ -45,7 +45,12 @@ public class User {
     protected User() {}
 
     public User(String email, String passwordHash, String fullName, Set<Role> roles) {
-        this.id = UUID.randomUUID();
+        this(UUID.randomUUID(), email, passwordHash, fullName, roles);
+    }
+
+    /** Constructor con id explicito: los conductores comparten identidad con dispatch. */
+    public User(UUID id, String email, String passwordHash, String fullName, Set<Role> roles) {
+        this.id = id;
         this.email = email.toLowerCase();
         this.passwordHash = passwordHash;
         this.fullName = fullName;

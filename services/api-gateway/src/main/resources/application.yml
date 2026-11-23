@@ -24,11 +24,11 @@ spring:
         - id: shipments
           uri: ${SHIPMENT_URI:http://localhost:8082}
           predicates:
-            - Path=/api/v1/shipments/**,/api/v1/drivers/**,/api/v1/offers/**,/api/v1/assignments/**
+            - Path=/api/v1/shipments/**
         - id: dispatch
           uri: ${DISPATCH_URI:http://localhost:8083}
           predicates:
-            - Path=/api/v1/dispatch/**
+            - Path=/api/v1/drivers/**,/api/v1/offers/**,/api/v1/assignments/**,/api/v1/dispatch/**
         - id: tracking
           uri: ${TRACKING_URI:http://localhost:8084}
           predicates:

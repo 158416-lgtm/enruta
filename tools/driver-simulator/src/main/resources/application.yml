@@ -5,10 +5,16 @@ spring:
     name: driver-simulator
 enruta:
   simulator:
-    tracking-url: ${TRACKING_URL:http://localhost:8084}
+    auth-url: ${AUTH_URL:http://localhost:8081}
+    dispatch-url: ${DISPATCH_URL:http://localhost:8083}
+    osrm-url: ${OSRM_BASE_URL:http://localhost:5000}
     driver-count: ${SIM_DRIVER_COUNT:6}
-    tick-interval: 2s
-    routes-file: ${SIM_ROUTES_FILE:infra/seed/routes.json}
+    center-lat: ${SIM_CENTER_LAT:4.3449}
+    center-lng: ${SIM_CENTER_LNG:-74.3674}
+    password: ${SIM_PASSWORD:Driver1234!}
+    auto-accept: ${SIM_AUTO_ACCEPT:true}
+    tick-interval-ms: ${SIM_TICK_INTERVAL_MS:2000}
+    tick-initial-delay-ms: 5000
 management:
   endpoints:
     web:

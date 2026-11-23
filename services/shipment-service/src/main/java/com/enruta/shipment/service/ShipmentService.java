@@ -134,6 +134,90 @@ public class ShipmentService {
         return ShipmentView.from(shipment, List.of());
     }
 
+    /** Reaccion a {@code dispatch.assigned}: el despacho eligio conductor. */
+    @Transactional
+    public void onDispatchAssigned(UUID shipmentId, UUID driverId) {
+        Shipment shipment = load(shipmentId);
+        if (shipment.getStatus() == ShipmentStatus.ASSIGNED
+                && driverId.equals(shipment.getDriverId())) {
+            return;
+        }
+        if (shipment.getStatus().isTerminal()) {
+            log.warn(
+                    "asignacion tardia ignorada shipment={} status={}",
+                    shipmentId,
+                    shipment.getStatus());
+            return;
+        }
+        ShipmentStatus previous = shipment.getStatus();
+        shipment.assignTo(driverId);
+        history.save(
+                new ShipmentStatusHistory(
+                        shipmentId,
+                        previous,
+                        ShipmentStatus.ASSIGNED,
+                        null,
+                        "asignado por dispatch"));
+        outbox.append(
+                EventEnvelope.of(
+                        EventTypes.SHIPMENT_ASSIGNED,
+                        1,
+                        shipmentId,
+                        null,
+                        ShipmentEventPayload.from(shipment)),
+                Topics.SHIPMENT_EVENTS);
+    }
+
+    /** Compensacion de la saga: el conductor abandono antes de recoger. */
+    @Transactional
+    public void onDriverCancelled(UUID shipmentId) {
+        Shipment shipment = load(shipmentId);
+        if (shipment.getStatus() != ShipmentStatus.ASSIGNED) {
+            return;
+        }
+        shipment.unassign();
+        history.save(
+                new ShipmentStatusHistory(
+                        shipmentId,
+                        ShipmentStatus.ASSIGNED,
+                        ShipmentStatus.CREATED,
+                        null,
+                        "conductor cancelo la asignacion"));
+        outbox.append(
+                EventEnvelope.of(
+                        EventTypes.SHIPMENT_UNASSIGNED,
+                        1,
+                        shipmentId,
+                        null,
+                        ShipmentEventPayload.from(shipment)),
+                Topics.SHIPMENT_EVENTS);
+    }
+
+    /** Reaccion a {@code dispatch.failed}: se agotaron las rondas sin conductor. */
+    @Transactional
+    public void onNoDriver(UUID shipmentId) {
+        Shipment shipment = load(shipmentId);
+        if (shipment.getStatus() != ShipmentStatus.CREATED) {
+            return;
+        }
+        shipment.transitionTo(ShipmentStatus.NO_DRIVER);
+        history.save(
+                new ShipmentStatusHistory(
+                        shipmentId,
+                        ShipmentStatus.CREATED,
+                        ShipmentStatus.NO_DRIVER,
+                        null,
+                        "sin conductores disponibles"));
+        outbox.append(
+                EventEnvelope.of(
+                        EventTypes.SHIPMENT_NO_DRIVER,
+                        1,
+                        shipmentId,
+                        null,
+                        ShipmentEventPayload.from(shipment)),
+                Topics.SHIPMENT_EVENTS);
+    }
+
     /** Transicion generica usada por los consumidores de eventos en sprints posteriores. */
     @Transactional
     public void transition(Shipment shipment, ShipmentStatus next, UUID actorId, String reason) {
