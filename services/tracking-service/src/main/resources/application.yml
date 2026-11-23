@@ -8,19 +8,29 @@ spring:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
   kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:9092}
+    bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:29092}
     producer:
       acks: all
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
       properties:
         enable.idempotence: true
     consumer:
-      auto-offset-reset: earliest
-      max-poll-records: 50
+      auto-offset-reset: latest
+      max-poll-records: 200
+      properties:
+        session.timeout.ms: 10000
+        heartbeat.interval.ms: 3000
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${AUTH_JWKS_URI:http://localhost:8081/api/v1/auth/jwks}
 enruta:
   tracking:
     ingest:
       max-points-per-batch: 10
-      max-batches-per-second: 1
+      max-batches-per-second: 3
 management:
   endpoints:
     web:

@@ -7,14 +7,31 @@ import java.util.UUID;
 /** Estado en memoria de un conductor simulado. */
 class DriverSession {
 
+    enum Mode {
+        PATROL,
+        TO_PICKUP,
+        DWELL_PICKUP,
+        TO_DROPOFF,
+        DONE
+    }
+
     final UUID driverId;
     final String email;
     final List<double[]> route = new ArrayList<>();
     String token;
     int cursor;
-    int direction = 1;
+    int step = 1;
+    Mode mode = Mode.PATROL;
+    int dwellTicks;
+    int doneTicks;
+    int fetchRetries;
+
+    UUID shipmentId;
+    UUID pendingShipmentId;
+    double dropoffLat;
+    double dropoffLng;
+
     int acceptDelayTicks;
-    UUID pendingOfferId;
 
     DriverSession(UUID driverId, String email) {
         this.driverId = driverId;
@@ -22,21 +39,33 @@ class DriverSession {
     }
 
     double[] current() {
+        if (route.isEmpty()) {
+            return new double[] {0, 0};
+        }
         return route.get(Math.min(cursor, route.size() - 1));
     }
 
-    /** Avanza a lo largo de la ruta y rebota en los extremos para no quedarse parado. */
-    void advance(int step) {
-        if (route.size() < 2) {
-            return;
-        }
-        cursor += step * direction;
-        if (cursor >= route.size()) {
-            cursor = route.size() - 2;
-            direction = -1;
-        } else if (cursor < 0) {
-            cursor = 1;
-            direction = 1;
-        }
+    boolean atEnd() {
+        return cursor >= route.size() - 1;
+    }
+
+    void resetRoute(List<double[]> points) {
+        route.clear();
+        route.addAll(points);
+        cursor = 0;
+        // ~20 ticks por tramo: una demo completa (origen + destino) en ~50 s.
+        step = Math.max(1, route.size() / 20);
+    }
+
+    void advance() {
+        cursor = Math.min(cursor + step, route.size() - 1);
+    }
+
+    void clearAssignment() {
+        shipmentId = null;
+        pendingShipmentId = null;
+        mode = Mode.PATROL;
+        doneTicks = 0;
+        fetchRetries = 0;
     }
 }

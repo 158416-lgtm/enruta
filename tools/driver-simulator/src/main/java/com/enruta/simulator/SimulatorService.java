@@ -12,10 +12,14 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 /**
- * Mueve los conductores por calles reales y acepta ofertas con un retardo humano.
+ * Ciclo de vida de un conductor simulado.
  *
- * <p>Sin esto la demo no se ve: es lo que hace que el mapa tenga movimiento y que la asignacion
- * ocurra sola en pocos segundos.
+ * <pre>
+ * PATROL → (acepta oferta) → TO_PICKUP → DWELL_PICKUP (3 pings) → TO_DROPOFF → DONE → PATROL
+ * </pre>
+ *
+ * <p>El dwell de 3 pings existe porque la geocerca exige histeresis: sin el, el conductor pasaria
+ * por el punto y el envio nunca cambiaria de estado.
  */
 @Service
 public class SimulatorService {
@@ -29,6 +33,7 @@ public class SimulatorService {
         UUID.fromString("11111111-1111-1111-1111-111111111105"),
         UUID.fromString("11111111-1111-1111-1111-111111111106")
     };
+    private static final int DWELL_TICKS = 3;
 
     private final SimulatorClient client;
     private final SimulatorProperties properties;
@@ -48,7 +53,7 @@ public class SimulatorService {
                     new DriverSession(DRIVER_IDS[i], "driver" + (i + 1) + "@enruta.test");
             try {
                 session.token = client.login(session.email);
-                session.route.addAll(routeFor(i));
+                session.resetRoute(patrolRoute(i));
                 sessions.add(session);
                 log.info(
                         "conductor simulado listo id={} puntos={}",
@@ -60,54 +65,144 @@ public class SimulatorService {
         }
         ready = !sessions.isEmpty();
         if (!ready) {
-            log.error("simulador sin conductores: revisa auth y dispatch");
+            log.error("simulador sin conductores: revisa auth, shipment y dispatch");
         }
     }
 
     @Scheduled(
-            fixedDelayString = "${enruta.simulator.tick-interval-ms:2000}",
+            fixedDelayString = "${enruta.simulator.tick-interval-ms:1000}",
             initialDelayString = "${enruta.simulator.tick-initial-delay-ms:5000}")
     public void tick() {
         if (!ready) {
             return;
         }
         for (DriverSession session : sessions) {
-            session.advance(session.direction > 0 ? 1 : -1);
-            double[] position = session.current();
-            client.postLocation(session.token, session.driverId, position[0], position[1]);
-            handleOffers(session);
+            try {
+                step(session);
+            } catch (Exception ex) {
+                log.warn("tick fallido driver={}: {}", session.driverId, ex.getMessage());
+            }
         }
     }
 
-    private void handleOffers(DriverSession session) {
+    private void step(DriverSession session) {
+        if (session.mode == DriverSession.Mode.PATROL && session.pendingShipmentId == null) {
+            askForOffers(session);
+        }
+        if (session.pendingShipmentId != null) {
+            startTrip(session);
+            if (session.mode == DriverSession.Mode.PATROL) {
+                reportPosition(session);
+                return;
+            }
+        }
+
+        switch (session.mode) {
+            case PATROL -> {
+                session.advance();
+                if (session.atEnd()) {
+                    session.cursor = 0;
+                }
+                reportPosition(session);
+            }
+            case TO_PICKUP -> {
+                session.advance();
+                reportPosition(session);
+                if (session.atEnd()) {
+                    session.mode = DriverSession.Mode.DWELL_PICKUP;
+                    session.dwellTicks = DWELL_TICKS;
+                    log.info("conductor {} llego al origen", session.email);
+                }
+            }
+            case DWELL_PICKUP -> {
+                reportPosition(session);
+                if (--session.dwellTicks <= 0) {
+                    startDropoffLeg(session);
+                }
+            }
+            case TO_DROPOFF -> {
+                session.advance();
+                reportPosition(session);
+                if (session.atEnd()) {
+                    session.mode = DriverSession.Mode.DONE;
+                    session.doneTicks = 0;
+                    log.info("conductor {} llego al destino", session.email);
+                }
+            }
+            case DONE -> {
+                reportPosition(session);
+                if (++session.doneTicks > DWELL_TICKS) {
+                    log.info("conductor {} libre de nuevo", session.email);
+                    session.clearAssignment();
+                    session.resetRoute(patrolRoute(session.driverId.hashCode() & 0x7fffffff));
+                }
+            }
+        }
+    }
+
+    private void askForOffers(DriverSession session) {
         if (!properties.autoAccept()) {
             return;
         }
-        if (session.pendingOfferId != null) {
-            if (session.acceptDelayTicks-- <= 0) {
-                if (client.accept(session.token, session.pendingOfferId)) {
-                    log.info(
-                            "conductor {} acepto oferta {}", session.email, session.pendingOfferId);
-                }
-                session.pendingOfferId = null;
-            }
+        List<JsonNode> offers = client.pendingOffers(session.token, session.driverId);
+        if (offers.isEmpty()) {
             return;
         }
-        List<JsonNode> offers = client.pendingOffers(session.token, session.driverId);
-        if (!offers.isEmpty()) {
-            JsonNode offer = offers.getFirst();
-            session.pendingOfferId = UUID.fromString(offer.get("id").asText());
-            session.acceptDelayTicks = 1 + (int) (Math.random() * 2);
+        JsonNode offer = offers.getFirst();
+        UUID offerId = UUID.fromString(offer.get("id").asText());
+        if (session.acceptDelayTicks > 0) {
+            session.acceptDelayTicks--;
+            return;
+        }
+        if (client.accept(session.token, offerId)) {
+            session.pendingShipmentId = UUID.fromString(offer.get("shipmentId").asText());
+            session.fetchRetries = 0;
             log.info(
-                    "conductor {} recibio oferta {} ({} m)",
+                    "conductor {} acepto oferta {} del envio {}",
                     session.email,
-                    session.pendingOfferId,
-                    offer.get("distanceMeters").asInt());
+                    offerId,
+                    session.pendingShipmentId);
+        } else {
+            session.acceptDelayTicks = 1;
         }
     }
 
-    /** Cada conductor recorre un tramo distinto alrededor del centro de Fusagasuga. */
-    private List<double[]> routeFor(int index) {
+    /** La asignacion es asincrona: se reintenta hasta que shipment refleje el conductor. */
+    private void startTrip(DriverSession session) {
+        SimulatorClient.ShipmentGeometry geometry =
+                client.shipment(session.token, session.pendingShipmentId);
+        if (geometry == null) {
+            session.fetchRetries++;
+            if (session.fetchRetries > 15) {
+                log.warn("no se pudo leer el envio {}: se libera", session.pendingShipmentId);
+                session.clearAssignment();
+            }
+            return;
+        }
+        double[] position = session.current();
+        session.shipmentId = session.pendingShipmentId;
+        session.pendingShipmentId = null;
+        session.dropoffLat = geometry.dropoffLat();
+        session.dropoffLng = geometry.dropoffLng();
+        session.resetRoute(
+                client.route(position[0], position[1], geometry.pickupLat(), geometry.pickupLng()));
+        session.mode = DriverSession.Mode.TO_PICKUP;
+        log.info("conductor {} va al origen del envio {}", session.email, session.shipmentId);
+    }
+
+    private void startDropoffLeg(DriverSession session) {
+        double[] position = session.current();
+        session.resetRoute(
+                client.route(position[0], position[1], session.dropoffLat, session.dropoffLng));
+        session.mode = DriverSession.Mode.TO_DROPOFF;
+    }
+
+    private void reportPosition(DriverSession session) {
+        double[] position = session.current();
+        client.postLocation(session.token, session.driverId, position[0], position[1]);
+    }
+
+    private List<double[]> patrolRoute(int index) {
         double lat = properties.centerLat();
         double lng = properties.centerLng();
         double[][] waypoints = {

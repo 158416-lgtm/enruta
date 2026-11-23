@@ -218,6 +218,47 @@ public class ShipmentService {
                 Topics.SHIPMENT_EVENTS);
     }
 
+    /** Reaccion a {@code tracking.geofence-entered} (PICKUP): el conductor llego al origen. */
+    @Transactional
+    public void onPickupConfirmed(UUID shipmentId) {
+        Shipment shipment = load(shipmentId);
+        if (shipment.getStatus() != ShipmentStatus.ASSIGNED) {
+            return;
+        }
+        transition(
+                shipment, ShipmentStatus.PICKED_UP, shipment.getDriverId(), "geocerca de origen");
+    }
+
+    /** El conductor ya se alejo del origen: el envio esta en camino. */
+    @Transactional
+    public void onTripStarted(UUID shipmentId) {
+        Shipment shipment = load(shipmentId);
+        if (shipment.getStatus() != ShipmentStatus.PICKED_UP) {
+            return;
+        }
+        transition(shipment, ShipmentStatus.IN_TRANSIT, shipment.getDriverId(), "en camino");
+    }
+
+    /** Reaccion a {@code tracking.geofence-entered} (DROPOFF): llego al destino. */
+    @Transactional
+    public void onDelivered(UUID shipmentId) {
+        Shipment shipment = load(shipmentId);
+        if (shipment.getStatus() != ShipmentStatus.IN_TRANSIT) {
+            log.warn("entrega ignorada shipment={} status={}", shipmentId, shipment.getStatus());
+            return;
+        }
+        transition(
+                shipment, ShipmentStatus.DELIVERED, shipment.getDriverId(), "geocerca de destino");
+        outbox.append(
+                EventEnvelope.of(
+                        EventTypes.SHIPMENT_DELIVERED,
+                        1,
+                        shipmentId,
+                        null,
+                        ShipmentEventPayload.from(shipment)),
+                Topics.SHIPMENT_EVENTS);
+    }
+
     /** Transicion generica usada por los consumidores de eventos en sprints posteriores. */
     @Transactional
     public void transition(Shipment shipment, ShipmentStatus next, UUID actorId, String reason) {

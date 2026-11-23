@@ -23,6 +23,7 @@ public final class EventTypes {
     public static final String TRACKING_POSITION_UPDATED = "tracking.position-updated";
     public static final String TRACKING_GEOFENCE_ENTERED = "tracking.geofence-entered";
     public static final String TRACKING_GEOFENCE_EXITED = "tracking.geofence-exited";
+    public static final String TRACKING_TRIP_STARTED = "tracking.trip-started";
 
     // notification.commands
     public static final String NOTIFICATION_REQUESTED = "notification.requested";

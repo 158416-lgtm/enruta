@@ -6,6 +6,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public record SimulatorProperties(
         String authUrl,
         String dispatchUrl,
+        String shipmentUrl,
+        String trackingUrl,
         String osrmUrl,
         int driverCount,
         double centerLat,

@@ -107,6 +107,7 @@ Comprobado en esta máquina, no solo compilado:
 | S1 de punta a punta | login → crear envío → outbox → relay → evento en `shipment.events`, con replay idempotente |
 | S2 de punta a punta | 6 conductores simulados por calles reales → oferta al más cercano → aceptación → `ASSIGNED` en ~8 s, con `dispatch.offer-created` y `dispatch.assigned` en Kafka |
 | Concurrencia | 50 hilos aceptando la misma oferta: **1 ganador, 49 conflictos, 1 asignación activa** |
+| S3 en vivo | `CREATED → ASSIGNED → PICKED_UP → IN_TRANSIT → DELIVERED` en ~2 min con WebSocket recibiendo posiciones; eventos `tracking.geofence-entered` (PICKUP/DROPOFF) y `tracking.trip-started` |
 
 > **Docker 29 + Testcontainers:** el cliente de Testcontainers usa API 1.32 y Docker 29 exige
 > 1.44. En esta máquina se resolvió con `~/.docker-java.properties` → `api.version=1.44`.
@@ -119,7 +120,7 @@ Comprobado en esta máquina, no solo compilado:
 | S0 | Esqueleto, compose, CI, ADRs | ✅ |
 | S1 | auth + gateway + shipment (máquina de estados, outbox, idempotencia) | ✅ |
 | S2 | dispatch (ofertas, timeout, anti-doble-asignación) + simulador | ✅ |
-| S3 | tracking (ingesta, Redis GEO, WebSocket, geofences) | ⏳ |
+| S3 | tracking (ingesta, Redis GEO, WebSocket, geofences) | ✅ |
 | S4 | routing/ETA + OSRM + circuit breaker | ⏳ |
 | S5 | notifications (reintentos, DLQ, MailHog) | ⏳ |
 | S6 | Observabilidad, k6, documentación y demo | ⏳ |
@@ -144,6 +145,28 @@ Comprobado en esta máquina, no solo compilado:
 | POST | `/api/v1/offers/{id}/reject` | pasa al siguiente candidato |
 | POST | `/api/v1/assignments/{id}/cancel` | compensación de la saga |
 | GET | `/api/v1/dispatch/shipments/{id}` | fase, ronda y oferta actual (diagnóstico) |
+| POST | `/api/v1/tracking/drivers/{id}/location` | lote de hasta 10 puntos, responde **202** |
+| GET | `/api/v1/tracking/shipments/{id}` | última posición y suscriptores |
+| WS | `/ws/tracking?shipmentId=&token=` | posiciones en vivo |
+
+### Canal en vivo (WebSocket)
+
+Al conectar con un JWT válido el servidor envía un *snapshot* y luego cada posición:
+
+```json
+{"type":"position","shipmentId":"...","driverId":"...","lat":4.3449,"lng":-74.3674,"at":"..."}
+{"type":"status","shipmentId":"...","status":"DELIVERED"}
+{"type":"subscribed","shipmentId":"..."}
+```
+
+El cliente debe reconectar con backoff (1 s → 30 s) y, al volver, pedir
+`GET /api/v1/tracking/shipments/{id}` para resincronizar.
+
+### Ciclo completo
+
+`CREATED → ASSIGNED → PICKED_UP → IN_TRANSIT → DELIVERED`, todo automático:
+el simulador conduce al origen, la geocerca de 100 m (con 3 pings consecutivos) confirma la
+recogida, alejarse 150 m marca `IN_TRANSIT` y llegar al destino cierra el envío.
 
 ### Flujo de asignación
 

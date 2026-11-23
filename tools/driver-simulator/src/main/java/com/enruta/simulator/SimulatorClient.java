@@ -13,12 +13,15 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 
-/** Cliente HTTP del simulador: login, rutas de OSRM, posiciones y ofertas. */
+/** Cliente HTTP del simulador: login, rutas de OSRM, posiciones, envios y ofertas. */
 @Component
 public class SimulatorClient {
 
     private static final Logger log = LoggerFactory.getLogger(SimulatorClient.class);
     private static final Duration TIMEOUT = Duration.ofSeconds(5);
+
+    public record ShipmentGeometry(
+            double pickupLat, double pickupLng, double dropoffLat, double dropoffLng) {}
 
     private final WebClient http = WebClient.builder().build();
     private final ObjectMapper objectMapper;
@@ -82,13 +85,18 @@ public class SimulatorClient {
         return straightLine(lat1, lng1, lat2, lng2);
     }
 
+    /** Tracking es ahora el unico dueno del GPS (ADR-0011). */
     public void postLocation(String token, UUID driverId, double lat, double lng) {
         try {
             http.post()
-                    .uri(properties.dispatchUrl() + "/api/v1/drivers/" + driverId + "/location")
+                    .uri(
+                            properties.trackingUrl()
+                                    + "/api/v1/tracking/drivers/"
+                                    + driverId
+                                    + "/location")
                     .header("Authorization", "Bearer " + token)
                     .contentType(MediaType.APPLICATION_JSON)
-                    .bodyValue(Map.of("lat", lat, "lng", lng))
+                    .bodyValue(Map.of("points", List.of(Map.of("lat", lat, "lng", lng))))
                     .retrieve()
                     .toBodilessEntity()
                     .block(TIMEOUT);
@@ -130,6 +138,27 @@ public class SimulatorClient {
         } catch (Exception ex) {
             log.debug("oferta {} ya no disponible: {}", offerId, ex.getMessage());
             return false;
+        }
+    }
+
+    /** Geometria del envio asignado; null mientras la asignacion no se haya propagado. */
+    public ShipmentGeometry shipment(String token, UUID shipmentId) {
+        try {
+            String body =
+                    http.get()
+                            .uri(properties.shipmentUrl() + "/api/v1/shipments/" + shipmentId)
+                            .header("Authorization", "Bearer " + token)
+                            .retrieve()
+                            .bodyToMono(String.class)
+                            .block(TIMEOUT);
+            JsonNode root = objectMapper.readTree(body);
+            return new ShipmentGeometry(
+                    root.at("/pickup/lat").asDouble(),
+                    root.at("/pickup/lng").asDouble(),
+                    root.at("/dropoff/lat").asDouble(),
+                    root.at("/dropoff/lng").asDouble());
+        } catch (Exception ex) {
+            return null;
         }
     }
 
