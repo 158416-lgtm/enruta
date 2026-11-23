@@ -25,8 +25,16 @@ FREE_GB=$(df -BG --output=avail "$ROOT" | tail -1 | tr -dc '0-9')
 if [ "${FREE_GB:-0}" -ge 15 ]; then ok "disco libre: ${FREE_GB} GB"; else warn "disco libre: ${FREE_GB} GB (recomendado 15 GB)"; fi
 
 echo "== Puertos"
+DOCKER_OK=0
+docker info >/dev/null 2>&1 && DOCKER_OK=1
 for p in 18080 8081 8082 8083 8084 8085 8086 8090 9092 29092 5433 6379 5000 8025 3000; do
-  if ss -ltn 2>/dev/null | grep -q ":${p} "; then warn "puerto ${p} en uso"; fi
+  if ss -ltn 2>/dev/null | grep -q ":${p} "; then
+    if [ "$DOCKER_OK" -eq 1 ] && docker ps --filter "publish=${p}" --format '{{.Names}}' 2>/dev/null | grep -q '^enruta-'; then
+      ok "puerto ${p} en uso por un contenedor de enruta"
+    else
+      warn "puerto ${p} en uso por un proceso ajeno al proyecto"
+    fi
+  fi
 done
 
 echo "== Datos de demo"
