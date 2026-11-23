@@ -18,6 +18,7 @@ target/
 *.pem
 *.key
 infra/keys/
+keys/
 
 # Datos OSRM (se generan con scripts/fetch-osrm.sh)
 infra/osrm/data/

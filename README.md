@@ -93,30 +93,63 @@ mvn spotless:apply      # formatea
 | [0002](docs/adr/0002-postgres-unico-con-bases-separadas.md) | Un PostgreSQL con una base por servicio en local |
 | [0003](docs/adr/0003-puertos-no-estandar.md) | Puertos 18080/5433/29092 por conflictos en la máquina |
 
-## Entorno verificado (S0)
+## Entorno verificado
 
 Comprobado en esta máquina, no solo compilado:
 
 | Elemento | Resultado |
 |---|---|
-| Build | `mvn verify` verde, 11 módulos, ~30 s |
+| Build | `mvn verify` verde, 12 módulos, 26 tests (incluye IT con PostgreSQL en Testcontainers) |
 | Kafka | healthy; 9 tópicos creados (`tracking.gps.raw` con 6 particiones, retención 1 h) |
 | PostgreSQL | healthy; 4 bases (`authdb`, `shipmentdb`, `dispatchdb`, `notifdb`) |
 | Redis / MailHog | healthy |
 | OSRM | extract de Fusagasugá generado (4,3 MB desde 320 MB de Colombia) y ruta real: **2,27 km / 237 s** |
-| `notification-service` | arranca contra el PostgreSQL real en 7,6 s (Flyway + Hikari OK) |
+| S1 de punta a punta | login → crear envío → outbox → relay → evento en `shipment.events`, con replay idempotente |
+
+> **Docker 29 + Testcontainers:** el cliente de Testcontainers usa API 1.32 y Docker 29 exige
+> 1.44. En esta máquina se resolvió con `~/.docker-java.properties` → `api.version=1.44`.
+> El CI hace lo mismo antes de correr los tests.
 
 ## Roadmap
 
 | Sprint | Alcance | Estado |
 |---|---|---|
 | S0 | Esqueleto, compose, CI, ADRs | ✅ |
-| S1 | auth + gateway + shipment (máquina de estados, outbox, idempotencia) | ⏳ |
+| S1 | auth + gateway + shipment (máquina de estados, outbox, idempotencia) | ✅ |
 | S2 | dispatch (ofertas, timeout, anti-doble-asignación) + simulador | ⏳ |
 | S3 | tracking (ingesta, Redis GEO, WebSocket, geofences) | ⏳ |
 | S4 | routing/ETA + OSRM + circuit breaker | ⏳ |
 | S5 | notifications (reintentos, DLQ, MailHog) | ⏳ |
 | S6 | Observabilidad, k6, documentación y demo | ⏳ |
+
+## API disponible (S1)
+
+| Método | Ruta | Notas |
+|---|---|---|
+| POST | `/api/v1/auth/register` | rol `CLIENT` por defecto |
+| POST | `/api/v1/auth/login` | devuelve access + refresh |
+| POST | `/api/v1/auth/refresh` | rotación: el refresh usado se revoca |
+| POST | `/api/v1/auth/logout` | revoca el refresh |
+| GET | `/api/v1/auth/jwks` | llave pública (público) |
+| GET | `/api/v1/auth/me` | requiere token |
+| POST | `/api/v1/shipments` | **requiere `Idempotency-Key`** |
+| GET | `/api/v1/shipments/{id}` | dueño, conductor asignado o admin |
+| POST | `/api/v1/shipments/{id}/cancel` | cliente hasta `ASSIGNED`; admin hasta `IN_TRANSIT` |
+
+Usuarios de demo (`enruta.auth.seed=true`): `admin@enruta.test` / `Admin1234!`,
+`cliente@enruta.test` / `Cliente1234!`, `driver{1..3}@enruta.test` / `Driver1234!`.
+
+```bash
+TOKEN=$(curl -s -X POST localhost:18080/api/v1/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"cliente@enruta.test","password":"Cliente1234!"}' | jq -r .accessToken)
+
+curl -X POST localhost:18080/api/v1/shipments \
+  -H "Authorization: Bearer $TOKEN" -H "Idempotency-Key: $(uuidgen)" \
+  -H 'Content-Type: application/json' \
+  -d '{"pickup":{"lat":4.3449,"lng":-74.3674,"address":"Parque Principal"},
+       "dropoff":{"lat":4.3374,"lng":-74.3600,"address":"Terminal"}}'
+```
 
 ## Licencia
 

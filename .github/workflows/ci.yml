@@ -24,6 +24,10 @@ jobs:
           java-version: "21"
           cache: maven
 
+      - name: Compatibilidad de API con Docker moderno
+        # docker-java usa API 1.32; Docker >= 29 exige 1.44.
+        run: echo "api.version=1.44" > ~/.docker-java.properties
+
       - name: Verificar formato
         run: mvn -B -q spotless:check
 

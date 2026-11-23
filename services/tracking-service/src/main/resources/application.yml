@@ -16,7 +16,7 @@ spring:
     consumer:
       auto-offset-reset: earliest
       max-poll-records: 50
-eruta:
+enruta:
   tracking:
     ingest:
       max-points-per-batch: 10
