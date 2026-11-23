@@ -117,7 +117,9 @@ services:
       - "8025:8025"
 
   # Requiere ./scripts/fetch-osrm.sh (recorta el extract de Colombia al casco urbano).
+  # Va en perfil aparte porque sin los datos procesados no puede arrancar.
   osrm:
+    profiles: ["routing"]
     image: osrm/osrm-backend:v5.25.0
     container_name: enruta-osrm
     command: ["osrm-routed", "--algorithm", "mld", "--max-table-size", "10000", "/data/fusagasuga.osrm"]

@@ -91,6 +91,20 @@ mvn spotless:apply      # formatea
 |---|---|
 | [0001](docs/adr/0001-kafka-como-broker.md) | Kafka como broker de eventos |
 | [0002](docs/adr/0002-postgres-unico-con-bases-separadas.md) | Un PostgreSQL con una base por servicio en local |
+| [0003](docs/adr/0003-puertos-no-estandar.md) | Puertos 18080/5433/29092 por conflictos en la máquina |
+
+## Entorno verificado (S0)
+
+Comprobado en esta máquina, no solo compilado:
+
+| Elemento | Resultado |
+|---|---|
+| Build | `mvn verify` verde, 11 módulos, ~30 s |
+| Kafka | healthy; 9 tópicos creados (`tracking.gps.raw` con 6 particiones, retención 1 h) |
+| PostgreSQL | healthy; 4 bases (`authdb`, `shipmentdb`, `dispatchdb`, `notifdb`) |
+| Redis / MailHog | healthy |
+| OSRM | extract de Fusagasugá generado (4,3 MB desde 320 MB de Colombia) y ruta real: **2,27 km / 237 s** |
+| `notification-service` | arranca contra el PostgreSQL real en 7,6 s (Flyway + Hikari OK) |
 
 ## Roadmap
 

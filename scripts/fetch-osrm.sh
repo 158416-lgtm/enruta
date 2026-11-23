@@ -13,13 +13,13 @@ DATA="$ROOT/infra/osrm/data"
 BBOX="${OSRM_BBOX:--74.395,4.325,-74.335,4.365}"
 SOURCE_URL="https://download.geofabrik.de/south-america/colombia/colombia-latest.osm.pbf"
 OSRM_IMAGE="${OSRM_IMAGE:-osrm/osrm-backend:v5.25.0}"
-OSMIUM_IMAGE="${OSMIUM_IMAGE:-alpine:3.20}"
+OSMIUM_IMAGE="${OSMIUM_IMAGE:-debian:bookworm-slim}"
 
 mkdir -p "$CACHE" "$DATA"
 
 echo "==> 1/5 Descargando extract de Colombia (~335 MB) si hace falta"
 if [ ! -f "$CACHE/colombia.osm.pbf" ]; then
-  curl -L --fail --progress-bar -o "$CACHE/colombia.osm.pbf.part" "$SOURCE_URL"
+  curl -sS -L --fail -o "$CACHE/colombia.osm.pbf.part" "$SOURCE_URL"
   mv "$CACHE/colombia.osm.pbf.part" "$CACHE/colombia.osm.pbf"
 fi
 
@@ -28,7 +28,8 @@ docker run --rm \
   -v "$CACHE:/cache:ro" \
   -v "$DATA:/data" \
   "$OSMIUM_IMAGE" sh -c "
-    apk add --no-cache osmium-tool >/dev/null &&
+    apt-get update -qq &&
+    apt-get install -y -qq osmium-tool >/dev/null &&
     osmium extract --overwrite --bbox ${BBOX} \
       --output /data/fusagasuga.osm.pbf /cache/colombia.osm.pbf
   "
