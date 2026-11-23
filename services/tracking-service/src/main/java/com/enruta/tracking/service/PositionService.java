@@ -1,5 +1,6 @@
 package com.enruta.tracking.service;
 
+import com.enruta.common.geo.GeoMath;
 import com.enruta.contracts.EventEnvelope;
 import com.enruta.contracts.EventTypes;
 import com.enruta.contracts.Topics;

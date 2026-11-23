@@ -108,6 +108,8 @@ Comprobado en esta máquina, no solo compilado:
 | S2 de punta a punta | 6 conductores simulados por calles reales → oferta al más cercano → aceptación → `ASSIGNED` en ~8 s, con `dispatch.offer-created` y `dispatch.assigned` en Kafka |
 | Concurrencia | 50 hilos aceptando la misma oferta: **1 ganador, 49 conflictos, 1 asignación activa** |
 | S3 en vivo | `CREATED → ASSIGNED → PICKED_UP → IN_TRANSIT → DELIVERED` en ~2 min con WebSocket recibiendo posiciones; eventos `tracking.geofence-entered` (PICKUP/DROPOFF) y `tracking.trip-started` |
+| S4 ETA | OSRM real **2.529 m / 273 s**, segunda llamada `cached:true`; con OSRM apagado responde `FALLBACK` en **43 ms** (haversine) |
+| Recuperación | tras cada entrega los 6 conductores vuelven a `AVAILABLE` y al índice GEO; un segundo envío se asigna de inmediato |
 
 > **Docker 29 + Testcontainers:** el cliente de Testcontainers usa API 1.32 y Docker 29 exige
 > 1.44. En esta máquina se resolvió con `~/.docker-java.properties` → `api.version=1.44`.
@@ -121,7 +123,7 @@ Comprobado en esta máquina, no solo compilado:
 | S1 | auth + gateway + shipment (máquina de estados, outbox, idempotencia) | ✅ |
 | S2 | dispatch (ofertas, timeout, anti-doble-asignación) + simulador | ✅ |
 | S3 | tracking (ingesta, Redis GEO, WebSocket, geofences) | ✅ |
-| S4 | routing/ETA + OSRM + circuit breaker | ⏳ |
+| S4 | routing/ETA + OSRM + circuit breaker | ✅ |
 | S5 | notifications (reintentos, DLQ, MailHog) | ⏳ |
 | S6 | Observabilidad, k6, documentación y demo | ⏳ |
 
@@ -148,6 +150,7 @@ Comprobado en esta máquina, no solo compilado:
 | POST | `/api/v1/tracking/drivers/{id}/location` | lote de hasta 10 puntos, responde **202** |
 | GET | `/api/v1/tracking/shipments/{id}` | última posición y suscriptores |
 | WS | `/ws/tracking?shipmentId=&token=` | posiciones en vivo |
+| GET | `/api/v1/eta?fromLat=&fromLng=&toLat=&toLng=` | ruta y ETA con caché y plan B |
 
 ### Canal en vivo (WebSocket)
 

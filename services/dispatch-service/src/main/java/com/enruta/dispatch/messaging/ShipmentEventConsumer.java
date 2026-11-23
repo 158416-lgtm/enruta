@@ -57,6 +57,8 @@ public class ShipmentEventConsumer {
                                 payload.get("pickupLng").asDouble());
                 case EventTypes.SHIPMENT_UNASSIGNED -> dispatchService.restart(shipmentId);
                 case EventTypes.SHIPMENT_CANCELLED -> dispatchService.cancelShipment(shipmentId);
+                case EventTypes.SHIPMENT_DELIVERED, EventTypes.SHIPMENT_FAILED ->
+                        dispatchService.finishDelivery(shipmentId);
                 default -> log.debug("evento ignorado type={}", type);
             }
         } catch (Exception ex) {

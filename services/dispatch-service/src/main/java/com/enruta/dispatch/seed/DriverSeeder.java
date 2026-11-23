@@ -78,10 +78,18 @@ public class DriverSeeder implements ApplicationRunner {
                             seed.lat(),
                             seed.lng());
             drivers.save(driver);
-            if (driver.getStatus() == DriverStatus.AVAILABLE) {
-                finder.index(driver.getId(), seed.lat(), seed.lng());
-            }
             log.info("conductor demo creado id={} nombre={}", seed.id(), seed.name());
         }
+
+        // El indice geografico vive en Redis y puede perderse (reinicio sin persistencia).
+        // Se reconstruye desde la base: es derivable, no fuente de verdad.
+        drivers.findByStatus(DriverStatus.AVAILABLE).stream()
+                .filter(driver -> driver.getCurrentLat() != null && driver.getCurrentLng() != null)
+                .forEach(
+                        driver ->
+                                finder.index(
+                                        driver.getId(),
+                                        driver.getCurrentLat(),
+                                        driver.getCurrentLng()));
     }
 }

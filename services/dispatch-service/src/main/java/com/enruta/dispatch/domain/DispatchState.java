@@ -18,6 +18,7 @@ public class DispatchState {
         SEARCHING,
         OFFERED,
         ASSIGNED,
+        COMPLETED,
         EXHAUSTED,
         CANCELLED
     }
@@ -77,6 +78,12 @@ public class DispatchState {
 
     public void markExhausted() {
         this.phase = Phase.EXHAUSTED;
+        this.currentOfferId = null;
+        this.updatedAt = Instant.now();
+    }
+
+    public void markCompleted() {
+        this.phase = Phase.COMPLETED;
         this.currentOfferId = null;
         this.updatedAt = Instant.now();
     }

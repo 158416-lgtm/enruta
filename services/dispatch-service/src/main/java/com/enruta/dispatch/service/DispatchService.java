@@ -94,6 +94,40 @@ public class DispatchService {
         offerNext(shipmentId);
     }
 
+    /**
+     * Cierra el ciclo: el envio termino (entregado, fallido o cancelado) y el conductor vuelve a
+     * estar disponible.
+     *
+     * <p>Sin esto los conductores se quedan BUSY para siempre y, tras unas cuantas entregas, ya no
+     * hay nadie a quien ofertar.
+     */
+    @Transactional
+    public void finishDelivery(UUID shipmentId) {
+        assignments
+                .findFirstByShipmentIdAndStatus(shipmentId, Assignment.Status.ACTIVE)
+                .ifPresent(
+                        assignment -> {
+                            assignment.complete();
+                            drivers.findById(assignment.getDriverId())
+                                    .ifPresent(
+                                            driver -> {
+                                                driver.markAvailable();
+                                                if (driver.getCurrentLat() != null
+                                                        && driver.getCurrentLng() != null) {
+                                                    finder.index(
+                                                            driver.getId(),
+                                                            driver.getCurrentLat(),
+                                                            driver.getCurrentLng());
+                                                }
+                                            });
+                            log.info(
+                                    "asignacion cerrada shipment={} driver={}",
+                                    shipmentId,
+                                    assignment.getDriverId());
+                        });
+        states.findById(shipmentId).ifPresent(DispatchState::markCompleted);
+    }
+
     @Transactional
     public void cancelShipment(UUID shipmentId) {
         states.findById(shipmentId)
@@ -103,6 +137,7 @@ public class DispatchService {
                             offers.findByShipmentIdAndStatus(shipmentId, OfferStatus.CREATED)
                                     .forEach(Offer::supersede);
                         });
+        finishDelivery(shipmentId);
     }
 
     @Transactional
