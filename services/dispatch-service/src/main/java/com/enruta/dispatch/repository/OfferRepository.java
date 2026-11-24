@@ -21,6 +21,8 @@ public interface OfferRepository extends JpaRepository<Offer, UUID> {
 
     List<Offer> findByShipmentIdAndStatus(UUID shipmentId, OfferStatus status);
 
+    long countByShipmentIdAndStatus(UUID shipmentId, OfferStatus status);
+
     @Query("select count(o) from Offer o where o.shipmentId = :shipmentId and o.round = :round")
     long countByShipmentAndRound(@Param("shipmentId") UUID shipmentId, @Param("round") short round);
 
@@ -28,6 +30,16 @@ public interface OfferRepository extends JpaRepository<Offer, UUID> {
      * Segunda barrera: solo una transaccion puede pasar de CREATED a ACCEPTED. Devuelve 0 si otra
      * ya lo hizo (o si la oferta expiro).
      */
+    /** Al ganar un conductor, las demas ofertas del envio dejan de estar disponibles. */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(
+            "update Offer o set o.status = :next "
+                    + "where o.shipmentId = :shipmentId and o.status = :current")
+    int updateStatusForShipment(
+            @Param("shipmentId") UUID shipmentId,
+            @Param("current") OfferStatus current,
+            @Param("next") OfferStatus next);
+
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("update Offer o set o.status = :next where o.id = :id and o.status = :current")
     int updateStatusIfCurrent(

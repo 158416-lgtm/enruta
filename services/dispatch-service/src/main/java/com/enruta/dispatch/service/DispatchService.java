@@ -168,12 +168,13 @@ public class DispatchService {
         Set<UUID> alreadyOffered = new HashSet<>(offers.findDriverIdsByShipmentId(shipmentId));
 
         while (state.getRound() <= MAX_ROUNDS) {
-            if (offers.countByShipmentAndRound(shipmentId, state.getRound())
-                    >= CANDIDATES_PER_ROUND) {
+            long inRound = offers.countByShipmentAndRound(shipmentId, state.getRound());
+            if (inRound >= CANDIDATES_PER_ROUND) {
                 state.nextRound();
                 continue;
             }
             int radius = RADII_METERS[state.getRound() - 1];
+            int slots = (int) (CANDIDATES_PER_ROUND - inRound);
             List<CandidateFinder.Candidate> candidates =
                     finder.nearest(state.getPickupLat(), state.getPickupLng(), radius, 8).stream()
                             .filter(candidate -> !alreadyOffered.contains(candidate.driverId()))
@@ -183,7 +184,12 @@ public class DispatchService {
             List<OfferScorer.Ranked> ranked =
                     OfferScorer.rank(candidates, radius, id -> ratingOf(id));
 
+            int sent = 0;
+            UUID firstOfferId = null;
             for (OfferScorer.Ranked rankedCandidate : ranked) {
+                if (sent >= slots) {
+                    break;
+                }
                 Driver driver =
                         drivers.findById(rankedCandidate.candidate().driverId()).orElse(null);
                 if (driver == null || driver.getStatus() != DriverStatus.AVAILABLE) {
@@ -199,14 +205,26 @@ public class DispatchService {
                                         rankedCandidate.candidate().distanceMeters(),
                                         rankedCandidate.score(),
                                         Instant.now().plus(offerTtl)));
-                state.markOffered(offer.getId());
                 publishOffer(offer);
+                sent++;
+                if (firstOfferId == null) {
+                    firstOfferId = offer.getId();
+                }
                 log.info(
                         "oferta creada shipment={} driver={} round={} distancia={}m",
                         shipmentId,
                         driver.getId(),
                         offer.getRound(),
                         offer.getDistanceMeters());
+            }
+
+            if (sent > 0) {
+                state.markOffered(firstOfferId);
+                log.info(
+                        "ofertas simultaneas enviadas shipment={} cantidad={} round={}",
+                        shipmentId,
+                        sent,
+                        state.getRound());
                 return;
             }
 
@@ -252,9 +270,15 @@ public class DispatchService {
                 throw BusinessException.conflict("OFFER_NOT_PENDING", "La oferta ya fue resuelta");
             }
 
-            Assignment assignment =
-                    assignments.saveAndFlush(
-                            new Assignment(offer.getShipmentId(), offer.getDriverId()));
+            Assignment assignment;
+            try {
+                assignment =
+                        assignments.saveAndFlush(
+                                new Assignment(offer.getShipmentId(), offer.getDriverId()));
+            } catch (org.springframework.dao.DataIntegrityViolationException alreadyAssigned) {
+                throw BusinessException.conflict(
+                        "ASSIGNMENT_TAKEN", "Otro conductor tomo este pedido primero");
+            }
 
             Driver driver =
                     drivers.findById(offer.getDriverId())
@@ -272,6 +296,10 @@ public class DispatchService {
                                             BusinessException.notFound(
                                                     "DISPATCH_NOT_FOUND", "Envio sin despacho"));
             state.markAssigned();
+
+            // El pedido ya es de este conductor: las ofertas de los demas dejan de estar vivas.
+            offers.updateStatusForShipment(
+                    offer.getShipmentId(), OfferStatus.CREATED, OfferStatus.SUPERSEDED);
 
             outbox.append(
                     EventEnvelope.of(
@@ -310,26 +338,34 @@ public class DispatchService {
             throw BusinessException.conflict("OFFER_NOT_PENDING", "La oferta ya fue resuelta");
         }
         offer.reject();
-        states.findById(offer.getShipmentId())
-                .ifPresent(s -> s.setPhase(DispatchState.Phase.SEARCHING));
-        offerNext(offer.getShipmentId());
+        long stillPending =
+                offers.countByShipmentIdAndStatus(offer.getShipmentId(), OfferStatus.CREATED);
+        if (stillPending == 0) {
+            states.findById(offer.getShipmentId())
+                    .ifPresent(s -> s.setPhase(DispatchState.Phase.SEARCHING));
+            offerNext(offer.getShipmentId());
+        }
     }
 
     /** Vence ofertas expiradas y sigue con el siguiente candidato. Lo llama el scheduler. */
     @Transactional
     public int expireDueOffers() {
         List<Offer> due = offers.findByStatusAndExpiresAtBefore(OfferStatus.CREATED, Instant.now());
+        Set<UUID> touched = new HashSet<>();
         for (Offer offer : due) {
             offer.expire();
-            DispatchState state = states.findById(offer.getShipmentId()).orElse(null);
+            touched.add(offer.getShipmentId());
+        }
+        for (UUID shipmentId : touched) {
+            DispatchState state = states.findById(shipmentId).orElse(null);
             if (state == null || !state.isActive()) {
                 continue;
             }
-            if (!offer.getId().equals(state.getCurrentOfferId())) {
-                continue;
+            if (offers.countByShipmentIdAndStatus(shipmentId, OfferStatus.CREATED) > 0) {
+                continue; // aun hay ofertas vivas de esta ronda
             }
             state.setPhase(DispatchState.Phase.SEARCHING);
-            offerNext(offer.getShipmentId());
+            offerNext(shipmentId);
         }
         return due.size();
     }

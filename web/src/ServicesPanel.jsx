@@ -40,6 +40,11 @@ export default function ServicesPanel({ shipment, dispatch, tracking, notificati
   const lastPosition = tracking?.lastPosition
   const notification = notifications?.[0]
   const history = shipment?.history ?? []
+  const pendingOffers = dispatch?.pendingOffers ?? []
+  const offerSeconds = pendingOffers.length
+    ? Math.max(0, Math.round((new Date(pendingOffers[0].expiresAt).getTime() - Date.now()) / 1000))
+    : null
+  const offerNames = pendingOffers.map((offer) => offer.driverName.split(' ')[0]).join(' y ')
 
   const detail = {
     gateway: `${stats.gateway} peticiones reenviadas`,
@@ -47,9 +52,11 @@ export default function ServicesPanel({ shipment, dispatch, tracking, notificati
     shipment: shipment
       ? `${STATUS_LABEL[shipment.status] ?? shipment.status} · ${history.length} cambios`
       : 'sin envío seleccionado',
-    dispatch: dispatch
-      ? `fase ${dispatch.phase} · ronda ${dispatch.round}`
-      : 'sin actividad de despacho',
+    dispatch: pendingOffers.length
+      ? `Oferta a ${offerNames} · quedan ${offerSeconds} s`
+      : dispatch
+        ? `fase ${dispatch.phase} · ronda ${dispatch.round}`
+        : 'sin actividad de despacho',
     tracking: lastPosition
       ? `última posición ${secondsAgo(lastPosition.at)} · ${tracking?.subscribers ?? 0} mirando`
       : 'esperando el primer ping',
@@ -76,7 +83,9 @@ export default function ServicesPanel({ shipment, dispatch, tracking, notificati
     gateway: true,
     auth: true,
     shipment: Boolean(shipment),
-    dispatch: dispatch && dispatch.phase !== 'COMPLETED' && dispatch.phase !== 'CANCELLED',
+    dispatch:
+      (dispatch && dispatch.phase !== 'COMPLETED' && dispatch.phase !== 'CANCELLED') ||
+      pendingOffers.length > 0,
     tracking: Boolean(lastPosition),
     routing: tracking?.etaSeconds != null,
     notification: notification?.status === 'SENT'

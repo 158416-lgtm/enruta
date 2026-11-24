@@ -275,9 +275,10 @@ recogida, alejarse 150 m marca `IN_TRANSIT` y llegar al destino cierra el envío
 ### Flujo de asignación
 
 1. El cliente crea el envío (`CREATED`).
-2. `dispatch` consume `shipment.created`, busca con Redis GEO y oferta al mejor candidato
-   (70% cercanía, 30% calificación), 15 s de vigencia.
-3. El conductor acepta: Redis `SET NX` + `UPDATE ... WHERE status='CREATED'` + índice único parcial.
+2. `dispatch` consume `shipment.created`, busca con Redis GEO y oferta **a los 3 mejores a la vez**
+   (70% cercanía, 30% calificación), 90 s de vigencia. Gana el que acepte primero.
+3. El conductor acepta: Redis `SET NX` + `UPDATE ... WHERE status='CREATED'` + índice único parcial;
+   al ganar, las ofertas de los demás quedan retiradas.
 4. `dispatch.assigned` → el envío pasa a `ASSIGNED`.
 5. Si la oferta vence, se prueba el siguiente candidato; 3 por ronda, radios 1,5 → 3 → 5 km.
 6. Si el conductor abandona: `dispatch.assignment-cancelled` → vuelve a `CREATED` y se re-oferta.
