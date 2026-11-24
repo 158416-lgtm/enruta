@@ -110,6 +110,8 @@ Comprobado en esta máquina, no solo compilado:
 | S3 en vivo | `CREATED → ASSIGNED → PICKED_UP → IN_TRANSIT → DELIVERED` en ~2 min con WebSocket recibiendo posiciones; eventos `tracking.geofence-entered` (PICKUP/DROPOFF) y `tracking.trip-started` |
 | S4 ETA | OSRM real **2.529 m / 273 s**, segunda llamada `cached:true`; con OSRM apagado responde `FALLBACK` en **43 ms** (haversine) |
 | Recuperación | tras cada entrega los 6 conductores vuelven a `AVAILABLE` y al índice GEO; un segundo envío se asigna de inmediato |
+| S5 correo | entrega → `notifications` en `SENT` con 1 intento → correo visible en MailHog (`:8025`) |
+| S5 reintentos | MailHog apagado → 3 intentos (2s, 3s, 5s) → `FAILED` + mensaje en `notification.commands.dlq` con destinatario y error |
 
 > **Docker 29 + Testcontainers:** el cliente de Testcontainers usa API 1.32 y Docker 29 exige
 > 1.44. En esta máquina se resolvió con `~/.docker-java.properties` → `api.version=1.44`.
@@ -124,7 +126,7 @@ Comprobado en esta máquina, no solo compilado:
 | S2 | dispatch (ofertas, timeout, anti-doble-asignación) + simulador | ✅ |
 | S3 | tracking (ingesta, Redis GEO, WebSocket, geofences) | ✅ |
 | S4 | routing/ETA + OSRM + circuit breaker | ✅ |
-| S5 | notifications (reintentos, DLQ, MailHog) | ⏳ |
+| S5 | notifications (reintentos, DLQ, MailHog) | ✅ |
 | S6 | Observabilidad, k6, documentación y demo | ⏳ |
 
 ## API disponible (S1)
@@ -151,6 +153,9 @@ Comprobado en esta máquina, no solo compilado:
 | GET | `/api/v1/tracking/shipments/{id}` | última posición y suscriptores |
 | WS | `/ws/tracking?shipmentId=&token=` | posiciones en vivo |
 | GET | `/api/v1/eta?fromLat=&fromLng=&toLat=&toLng=` | ruta y ETA con caché y plan B |
+| GET | `/api/v1/notifications?shipmentId=` | historial de notificaciones del envío |
+| GET | `/api/v1/notifications/{id}` | estado, intentos y último error |
+| POST | `/api/v1/notifications/test` | solo ADMIN; encola un correo de prueba |
 
 ### Canal en vivo (WebSocket)
 

@@ -37,6 +37,10 @@ spring:
           uri: ${ROUTING_URI:http://localhost:8085}
           predicates:
             - Path=/api/v1/eta/**
+        - id: notifications
+          uri: ${NOTIFICATION_URI:http://localhost:8086}
+          predicates:
+            - Path=/api/v1/notifications/**
 management:
   endpoints:
     web:

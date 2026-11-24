@@ -4,25 +4,53 @@ spring:
   application:
     name: notification-service
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/notifdb}
+    url: ${DB_URL:jdbc:postgresql://localhost:5433/notifdb}
     username: ${DB_USER:enruta}
     password: ${DB_PASSWORD:enruta}
   jpa:
     open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
   flyway:
     enabled: true
   kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:9092}
+    bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:29092}
+    producer:
+      acks: all
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      properties:
+        enable.idempotence: true
     consumer:
       auto-offset-reset: earliest
       max-poll-records: 50
+      properties:
+        session.timeout.ms: 10000
+        heartbeat.interval.ms: 3000
   mail:
     host: ${MAIL_HOST:localhost}
     port: ${MAIL_PORT:1025}
+    properties:
+      mail:
+        smtp:
+          connectiontimeout: 2000
+          timeout: 3000
+          writetimeout: 3000
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${AUTH_JWKS_URI:http://localhost:8081/api/v1/auth/jwks}
 enruta:
   notification:
-    max-attempts: 3
-    backoff: 2s,10s,30s
+    max-attempts: ${NOTIFICATION_MAX_ATTEMPTS:3}
+    backoff: ${NOTIFICATION_BACKOFF:2s,10s,30s}
+    retry-poll-ms: 1000
+    retry-initial-delay-ms: 3000
     webhook-secret: ${WEBHOOK_SECRET:change-me}
 management:
   endpoints:

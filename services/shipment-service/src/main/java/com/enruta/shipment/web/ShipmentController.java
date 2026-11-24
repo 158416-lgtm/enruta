@@ -76,7 +76,8 @@ public class ShipmentController {
         }
 
         try {
-            ShipmentView created = shipments.create(customerId, request);
+            ShipmentView created =
+                    shipments.create(customerId, jwt.getClaimAsString("email"), request);
             idempotency.complete(
                     idempotencyKey,
                     HttpStatus.CREATED.value(),

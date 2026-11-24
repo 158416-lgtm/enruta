@@ -41,10 +41,12 @@ public class ShipmentService {
     }
 
     @Transactional
-    public ShipmentView create(UUID customerId, CreateShipmentRequest request) {
+    public ShipmentView create(
+            UUID customerId, String customerEmail, CreateShipmentRequest request) {
         Shipment shipment =
                 new Shipment(
                         customerId,
+                        customerEmail,
                         request.pickup().lat(),
                         request.pickup().lng(),
                         request.dropoff().lat(),
@@ -257,6 +259,25 @@ public class ShipmentService {
                         null,
                         ShipmentEventPayload.from(shipment)),
                 Topics.SHIPMENT_EVENTS);
+
+        if (shipment.getCustomerEmail() != null) {
+            outbox.append(
+                    EventEnvelope.of(
+                            EventTypes.NOTIFICATION_REQUESTED,
+                            1,
+                            shipmentId,
+                            null,
+                            new NotificationCommand(
+                                    shipmentId,
+                                    shipment.getCustomerEmail(),
+                                    "EMAIL",
+                                    "SHIPMENT_DELIVERED",
+                                    java.util.Map.of(
+                                            "shipmentId", shipmentId.toString(),
+                                            "dropoffAddress", shipment.getDropoffAddress()),
+                                    "shipment:" + shipmentId + ":DELIVERED")),
+                    Topics.NOTIFICATION_COMMANDS);
+        }
     }
 
     /** Transicion generica usada por los consumidores de eventos en sprints posteriores. */

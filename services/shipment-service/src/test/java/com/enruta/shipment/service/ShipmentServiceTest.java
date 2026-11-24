@@ -50,7 +50,7 @@ class ShipmentServiceTest {
         UUID customer = UUID.randomUUID();
         when(shipments.save(any(Shipment.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        var view = service.create(customer, validRequest());
+        var view = service.create(customer, "cliente@test", validRequest());
 
         assertThat(view.status()).isEqualTo(ShipmentStatus.CREATED);
         assertThat(view.pickupPin()).hasSize(4).matches("\\d{4}");
@@ -149,7 +149,16 @@ class ShipmentServiceTest {
 
     private Shipment shipmentFor(UUID customer, UUID driver, ShipmentStatus status) {
         Shipment shipment =
-                new Shipment(customer, 4.34, -74.36, 4.33, -74.35, "origen", "destino", "1234");
+                new Shipment(
+                        customer,
+                        "cliente@test",
+                        4.34,
+                        -74.36,
+                        4.33,
+                        -74.35,
+                        "origen",
+                        "destino",
+                        "1234");
         if (status == ShipmentStatus.CREATED) {
             return shipment;
         }

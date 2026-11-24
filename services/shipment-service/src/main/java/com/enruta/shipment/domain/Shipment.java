@@ -19,6 +19,9 @@ public class Shipment {
     @Column(name = "customer_id", nullable = false)
     private UUID customerId;
 
+    @Column(name = "customer_email", length = 255)
+    private String customerEmail;
+
     @Column(name = "driver_id")
     private UUID driverId;
 
@@ -64,6 +67,7 @@ public class Shipment {
 
     public Shipment(
             UUID customerId,
+            String customerEmail,
             double pickupLat,
             double pickupLng,
             double dropoffLat,
@@ -73,6 +77,7 @@ public class Shipment {
             String pickupPin) {
         this.id = UUID.randomUUID();
         this.customerId = customerId;
+        this.customerEmail = customerEmail;
         this.status = ShipmentStatus.CREATED;
         this.pickupLat = pickupLat;
         this.pickupLng = pickupLng;
@@ -117,6 +122,10 @@ public class Shipment {
 
     public UUID getCustomerId() {
         return customerId;
+    }
+
+    public String getCustomerEmail() {
+        return customerEmail;
     }
 
     public UUID getDriverId() {
