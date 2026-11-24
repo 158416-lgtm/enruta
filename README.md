@@ -126,6 +126,26 @@ Guía paso a paso con lo que debes ver en cada momento:
 (`cloudflared tunnel --url http://localhost:5173`). La vista del repartidor es una PWA con
 `watchPosition`, filtrado de pings y modo simulado de respaldo.
 
+## Ver los 7 servicios trabajando en vivo
+
+```bash
+./scripts/ver-servicios.sh
+```
+
+Una ventana con los 7 servicios en colores que va narrando lo que pasa mientras usas la app:
+
+```
+13:14:46  JEFE DE PEDIDOS  Envio creado · id ca96949b
+13:14:46  COORDINADOR      Oferta enviada al repartidor 1 · 31 m · ronda 1
+13:14:49  COORDINADOR      Asignacion confirmada: el pedido ya tiene repartidor
+13:14:56  RASTREADOR       Geocerca confirmada (3 pings seguidos)
+13:14:59  RASTREADOR       El repartidor se puso en camino
+13:15:19  RASTREADOR       Geocerca confirmada (3 pings seguidos)
+13:15:19  JEFE DE PEDIDOS  Evento publicado en Kafka · shipment.delivered
+13:15:19  COORDINADOR      Repartidor liberado (puede recibir otro pedido)
+13:15:20  CARTERO          Correo enviado a cliente@enruta.test · intento 1
+```
+
 ## Laboratorio (opera el sistema tú mismo)
 
 ```bash

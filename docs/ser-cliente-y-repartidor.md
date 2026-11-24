@@ -88,6 +88,19 @@ Los navegadores solo entregan GPS en **contextos seguros** (HTTPS o `localhost`)
 - El modo **Simulado** hace el mismo recorrido con el botón, sin GPS.
 - La pantalla se mantiene encendida mientras el GPS está activo (*wake lock*).
 
+## Ver los personajes trabajar en vivo
+
+En una terminal aparte:
+
+```bash
+./scripts/ver-servicios.sh
+```
+
+Deja esa ventana al lado de la app. Cada linea es un mensaje real de un servicio, pintado con su
+color y traducido: envío creado, oferta enviada, asignación confirmada, geocerca, correo enviado.
+
+Es la forma más directa de demostrar que hay **siete programas distintos** hablando entre sí.
+
 ## Lo que puedes mostrar en la exposición
 
 - Dos pestañas lado a lado: a la izquierda el cliente, a la derecha el repartidor.

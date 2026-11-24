@@ -340,21 +340,26 @@ def cmd_conducir(args):
     ok(f"origen: {pickup['address']}  ·  destino: {dropoff['address']}")
 
     driver_uuid = driver_id(number)
-    _drive(route(start, pickup), "origen", shipment_id, token, driver_uuid)
+    at_pickup = _drive(route(start, pickup), "origen", shipment_id, token, driver_uuid)
     print("      · 3 pings dentro de 100 m → geocerca de origen")
-    _dwell(shipment_id, token, driver_uuid, 3)
+    _dwell(shipment_id, token, driver_uuid, 3, at_pickup)
 
     position = _last_position(shipment_id) or pickup
-    _drive(route(position, dropoff), "destino", shipment_id, token, driver_uuid)
+    at_dropoff = _drive(route(position, dropoff), "destino", shipment_id, token, driver_uuid)
     print("      · 3 pings dentro de 150 m → geocerca de destino")
-    _dwell(shipment_id, token, driver_uuid, 4)
+    _dwell(shipment_id, token, driver_uuid, 4, at_dropoff)
 
     cmd_estado([shipment_id])
 
 
 def _drive(points, pickup_label, shipment_id, token, driver_uuid):
+    """Reporta la ruta y devuelve el ultimo punto enviado (para el dwell)."""
     step = max(1, len(points) // 20)
-    for index in range(0, len(points), step):
+    last = points[-1]
+    indices = list(range(0, len(points), step))
+    if indices[-1] != len(points) - 1:
+        indices.append(len(points) - 1)  # llegar siempre al punto exacto (geocerca)
+    for index in indices:
         lat, lng = points[index]
         status, _ = http(
             "POST",
@@ -365,19 +370,21 @@ def _drive(points, pickup_label, shipment_id, token, driver_uuid):
         marker = "·" if status == 202 else "x"
         sys.stdout.write(f"\r      {marker} avanzando hacia el {pickup_label}  {index:3}/{len(points)}")
         sys.stdout.flush()
+        last = {"lat": lat, "lng": lng}
         time.sleep(0.8)
     print()
+    return last
 
 
-def _dwell(shipment_id, token, driver_uuid, times):
+def _dwell(shipment_id, token, driver_uuid, times, point):
+    """Repite el ultimo punto enviado: la geocerca exige 3 pings consecutivos dentro."""
     for _ in range(times):
-        position = _last_position(shipment_id)
-        if not position:
+        if not point:
             return
         http(
             "POST",
             f"{TRACKING}/api/v1/tracking/drivers/{driver_uuid}/location",
-            {"points": [{"lat": position["lat"], "lng": position["lng"]}]},
+            {"points": [{"lat": point["lat"], "lng": point["lng"]}]},
             token,
         )
         time.sleep(0.8)

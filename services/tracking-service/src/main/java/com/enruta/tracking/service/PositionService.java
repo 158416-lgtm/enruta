@@ -112,10 +112,16 @@ public class PositionService {
                     Map.of("shipmentId", shipmentId, "driverId", position.driverId().toString()));
         }
 
-        boolean dropoffConfirmed =
-                geofences.registerHit(shipmentId, "DROPOFF", toDropoff <= DROPOFF_RADIUS_METERS);
-        if (dropoffConfirmed) {
-            publishGeofence(shipmentId, position.driverId(), "DROPOFF", toDropoff);
+        // No se puede entregar lo que no se ha recogido: si el conductor ya estaba en el destino
+        // (por ejemplo al terminar otro envio), no disparamos la geocerca hasta confirmar el
+        // origen.
+        if (pickupDone) {
+            boolean dropoffConfirmed =
+                    geofences.registerHit(
+                            shipmentId, "DROPOFF", toDropoff <= DROPOFF_RADIUS_METERS);
+            if (dropoffConfirmed) {
+                publishGeofence(shipmentId, position.driverId(), "DROPOFF", toDropoff);
+            }
         }
     }
 
