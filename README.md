@@ -78,12 +78,52 @@ mvn spotless:apply      # formatea
 | shipment | 8082 | notification | 8086 |
 | dispatch | 8083 | simulador | 8090 |
 | web | 5173 | MailHog UI | 8025 |
-| Grafana | 3000 | OSRM | 5000 |
+| Grafana | 3000 | Prometheus | 9090 |
+| OSRM | 5000 | PostgreSQL | 5433 |
 | PostgreSQL | 5433 | Kafka (host) | 29092 |
 
 > **Puertos no estándar:** el 8080 y el 5432 ya están ocupados en esta máquina, por eso el
 > gateway usa **18080** y el PostgreSQL del compose se publica en **5433**. Los contenedores
 > siguen hablando entre ellos por los puertos internos (8080, 5432).
+
+## Frontend
+
+React + Leaflet en `web/`: login, creación de envíos con rutas predefinidas, mapa con el
+conductor en vivo (WebSocket), ETA y timeline de estados.
+
+```bash
+cd web && npm install && npm run dev    # http://localhost:5173
+```
+
+El proxy de Vite reenvía `/api` al gateway, así no hay CORS en desarrollo. Las teselas vienen de
+OpenStreetMap (requieren internet); la ruta y los marcadores funcionan igual sin conexión.
+
+## Observabilidad
+
+```bash
+docker compose -f infra/docker-compose.yml --profile obs up -d prometheus grafana
+```
+
+- Prometheus en `:9090` (8 targets: 7 servicios + él mismo).
+- Grafana en `:3000`, dashboard **EnRuta · plataforma** provisionado y accesible de forma anónima.
+
+## Prueba de carga
+
+```bash
+RATE=300 DURATION=60s k6 run load/k6/ingest.js
+```
+
+Instrucciones completas en [`docs/operacion.md`](docs/operacion.md). Umbrales: 99% de `202` y
+p95 < 200 ms.
+
+## Documentación
+
+| Documento | Contenido |
+|---|---|
+| [`docs/c4.md`](docs/c4.md) | diagramas C4 y secuencias (Mermaid) |
+| [`docs/exposicion.md`](docs/exposicion.md) | guion de 10–12 min, slides y preguntas probables |
+| [`docs/operacion.md`](docs/operacion.md) | arranque, k6, observabilidad y problemas frecuentes |
+| [`docs/adr/`](docs/adr) | 13 decisiones con alternativas descartadas |
 
 ## Decisiones
 
@@ -112,6 +152,8 @@ Comprobado en esta máquina, no solo compilado:
 | Recuperación | tras cada entrega los 6 conductores vuelven a `AVAILABLE` y al índice GEO; un segundo envío se asigna de inmediato |
 | S5 correo | entrega → `notifications` en `SENT` con 1 intento → correo visible en MailHog (`:8025`) |
 | S5 reintentos | MailHog apagado → 3 intentos (2s, 3s, 5s) → `FAILED` + mensaje en `notification.commands.dlq` con destinatario y error |
+| S6 frontend | `vite build` OK; login por proxy y listado de envíos verificado contra el gateway |
+| S6 observabilidad | Prometheus **8/8 targets UP**; dashboard de Grafana provisionado |
 
 > **Docker 29 + Testcontainers:** el cliente de Testcontainers usa API 1.32 y Docker 29 exige
 > 1.44. En esta máquina se resolvió con `~/.docker-java.properties` → `api.version=1.44`.
@@ -127,7 +169,7 @@ Comprobado en esta máquina, no solo compilado:
 | S3 | tracking (ingesta, Redis GEO, WebSocket, geofences) | ✅ |
 | S4 | routing/ETA + OSRM + circuit breaker | ✅ |
 | S5 | notifications (reintentos, DLQ, MailHog) | ✅ |
-| S6 | Observabilidad, k6, documentación y demo | ⏳ |
+| S6 | Frontend, observabilidad, k6, documentación y demo | ✅ |
 
 ## API disponible (S1)
 

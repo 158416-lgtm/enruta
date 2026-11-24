@@ -1,0 +1,11 @@
+apiVersion: 1
+
+providers:
+  - name: enruta
+    orgId: 1
+    folder: EnRuta
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /var/lib/grafana/dashboards

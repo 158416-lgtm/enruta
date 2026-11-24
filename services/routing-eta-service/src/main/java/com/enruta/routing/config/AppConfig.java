@@ -21,7 +21,10 @@ public class AppConfig {
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(
                         auth ->
-                                auth.requestMatchers("/actuator/health/**", "/actuator/info")
+                                auth.requestMatchers(
+                                                "/actuator/health/**",
+                                                "/actuator/info",
+                                                "/actuator/prometheus")
                                         .permitAll()
                                         .anyRequest()
                                         .authenticated())

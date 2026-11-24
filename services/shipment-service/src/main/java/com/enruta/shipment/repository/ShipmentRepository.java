@@ -12,4 +12,7 @@ public interface ShipmentRepository extends JpaRepository<Shipment, UUID> {
     Page<Shipment> findByStatus(ShipmentStatus status, Pageable pageable);
 
     Page<Shipment> findByCustomerId(UUID customerId, Pageable pageable);
+
+    Page<Shipment> findByCustomerIdAndStatus(
+            UUID customerId, ShipmentStatus status, Pageable pageable);
 }

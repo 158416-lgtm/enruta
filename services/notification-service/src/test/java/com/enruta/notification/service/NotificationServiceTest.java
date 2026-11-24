@@ -25,7 +25,13 @@ class NotificationServiceTest {
     private final KafkaTemplate<String, String> kafka = mock(KafkaTemplate.class);
 
     private NotificationService service(RetryPolicy policy) {
-        return new NotificationService(repository, sender, policy, kafka, new ObjectMapper());
+        return new NotificationService(
+                repository,
+                sender,
+                policy,
+                kafka,
+                new ObjectMapper(),
+                new io.micrometer.core.instrument.simple.SimpleMeterRegistry());
     }
 
     private void stubSave() {

@@ -4,6 +4,8 @@ import com.enruta.contracts.Topics;
 import com.enruta.notification.domain.Notification;
 import com.enruta.notification.repository.NotificationRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -31,18 +33,34 @@ public class NotificationService {
     private final RetryPolicy retryPolicy;
     private final KafkaTemplate<String, String> kafka;
     private final ObjectMapper objectMapper;
+    private final Counter sentCounter;
+    private final Counter retryCounter;
+    private final Counter failedCounter;
 
     public NotificationService(
             NotificationRepository repository,
             EmailSender sender,
             RetryPolicy retryPolicy,
             KafkaTemplate<String, String> kafka,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            MeterRegistry meters) {
         this.repository = repository;
         this.sender = sender;
         this.retryPolicy = retryPolicy;
         this.kafka = kafka;
         this.objectMapper = objectMapper;
+        this.sentCounter =
+                Counter.builder("notification_attempts_total")
+                        .tag("result", "sent")
+                        .register(meters);
+        this.retryCounter =
+                Counter.builder("notification_attempts_total")
+                        .tag("result", "retry")
+                        .register(meters);
+        this.failedCounter =
+                Counter.builder("notification_attempts_total")
+                        .tag("result", "dead_letter")
+                        .register(meters);
     }
 
     @Transactional
@@ -120,6 +138,7 @@ public class NotificationService {
                         notification.getAttempts(),
                         ex.getMessage());
             } else {
+                retryCounter.increment();
                 notification.scheduleRetry(decision.nextAttemptAt(), ex.getMessage());
                 log.warn(
                         "notificacion reintentara id={} intento={} en {}: {}",

@@ -136,6 +136,28 @@ public class ShipmentService {
         return ShipmentView.from(shipment, List.of());
     }
 
+    /** Listado para la UI: el cliente ve lo suyo, el admin ve todo. */
+    @Transactional(readOnly = true)
+    public org.springframework.data.domain.Page<ShipmentView> list(
+            UUID actorId,
+            List<String> roles,
+            ShipmentStatus status,
+            org.springframework.data.domain.Pageable pageable) {
+        org.springframework.data.domain.Page<Shipment> page;
+        if (roles.contains("ADMIN")) {
+            page =
+                    status == null
+                            ? shipments.findAll(pageable)
+                            : shipments.findByStatus(status, pageable);
+        } else {
+            page =
+                    status == null
+                            ? shipments.findByCustomerId(actorId, pageable)
+                            : shipments.findByCustomerIdAndStatus(actorId, status, pageable);
+        }
+        return page.map(shipment -> ShipmentView.from(shipment, List.of()));
+    }
+
     /** Reaccion a {@code dispatch.assigned}: el despacho eligio conductor. */
     @Transactional
     public void onDispatchAssigned(UUID shipmentId, UUID driverId) {

@@ -25,14 +25,20 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/tracking")
 public class LocationController {
 
-    private static final int MAX_BATCHES_PER_SECOND = 3;
+    private final int maxBatchesPerSecond;
 
     private final GpsProducer producer;
     private final StringRedisTemplate redis;
 
-    public LocationController(GpsProducer producer, StringRedisTemplate redis) {
+    public LocationController(
+            GpsProducer producer,
+            StringRedisTemplate redis,
+            @org.springframework.beans.factory.annotation.Value(
+                            "${enruta.tracking.ingest.max-batches-per-second:3}")
+                    int maxBatchesPerSecond) {
         this.producer = producer;
         this.redis = redis;
+        this.maxBatchesPerSecond = maxBatchesPerSecond;
     }
 
     @PostMapping("/drivers/{id}/location")
@@ -53,7 +59,7 @@ public class LocationController {
         if (count != null && count == 1) {
             redis.expire(rateKey, java.time.Duration.ofSeconds(1));
         }
-        if (count != null && count > MAX_BATCHES_PER_SECOND) {
+        if (count != null && count > maxBatchesPerSecond) {
             throw new BusinessException(
                     "RATE_LIMITED",
                     "Demasiados reportes por segundo",

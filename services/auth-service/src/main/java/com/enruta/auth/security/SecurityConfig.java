@@ -21,7 +21,8 @@ public class SecurityConfig {
         "/api/v1/auth/refresh",
         "/api/v1/auth/jwks",
         "/actuator/health/**",
-        "/actuator/info"
+        "/actuator/info",
+        "/actuator/prometheus"
     };
 
     @Bean
