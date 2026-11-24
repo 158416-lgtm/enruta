@@ -59,6 +59,13 @@ public class ShipmentEventConsumer {
                 case EventTypes.SHIPMENT_CANCELLED -> dispatchService.cancelShipment(shipmentId);
                 case EventTypes.SHIPMENT_DELIVERED, EventTypes.SHIPMENT_FAILED ->
                         dispatchService.finishDelivery(shipmentId);
+                case EventTypes.SHIPMENT_STATUS_CHANGED -> {
+                    // shipment publica status-changed para toda transicion; una cancelacion
+                    // tambien debe detener el despacho.
+                    if ("CANCELLED".equals(payload.path("status").asText())) {
+                        dispatchService.cancelShipment(shipmentId);
+                    }
+                }
                 default -> log.debug("evento ignorado type={}", type);
             }
         } catch (Exception ex) {

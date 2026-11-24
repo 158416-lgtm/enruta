@@ -122,6 +122,10 @@ docker compose -f infra/docker-compose.yml --profile obs up -d prometheus grafan
 Guía paso a paso con lo que debes ver en cada momento:
 [`docs/ser-cliente-y-repartidor.md`](docs/ser-cliente-y-repartidor.md).
 
+**Repartidor con GPS real:** abre un túnel HTTPS y usa el móvil como conductor
+(`cloudflared tunnel --url http://localhost:5173`). La vista del repartidor es una PWA con
+`watchPosition`, filtrado de pings y modo simulado de respaldo.
+
 ## Laboratorio (opera el sistema tú mismo)
 
 ```bash

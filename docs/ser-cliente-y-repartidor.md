@@ -1,200 +1,117 @@
-# Cómo ser el cliente y cómo ser el repartidor
+# Cómo ser el cliente y cómo ser el repartidor (en el navegador)
 
-EnRuta tiene dos "apps" reales:
+Todo se hace en **la web**. No hace falta terminal, ni simulador, ni que nadie acepte por ti.
 
-| Papel | Dónde | Qué es |
-|---|---|---|
-| **Cliente** | navegador (`http://localhost:5173`) o `./scripts/cliente.py` | crea envíos, los sigue, los cancela |
-| **Repartidor** | `./scripts/repartidor.py` | recibe ofertas, las acepta y reporta GPS |
-
-La app del repartidor es de terminal porque **eso es exactamente lo que haría una app móvil**: los
-mismos endpoints con su JWT. No hay atajos ni acceso a la base de datos.
-
-## Preparación (una vez)
+## Preparación (una vez por sesión)
 
 ```bash
 cd /home/kevin/enruta
-./scripts/start.sh              # todo arriba
-./scripts/lab.sh simoff         # apaga el simulador: las ofertas quedan para ti
-./scripts/lab.sh preparar       # deja los 6 repartidores libres y cerca del centro
-./scripts/lab.sh reset          # limpia el estado del laboratorio
+./scripts/start.sh          # todo arriba; el simulador queda APAGADO
+./scripts/lab.sh preparar   # 6 repartidores libres y cerca del centro
 ```
 
-> **Si "no hay ofertas":** ejecuta `./scripts/lab.sh preparar`. Deja el tablero limpio (cancela
-> envíos abiertos de pruebas anteriores, libera a los repartidores y los reindexa en el mapa).
-> Úsalo al empezar cada sesión de pruebas.
+> `./scripts/lab.sh preparar` cancela envíos de pruebas anteriores y deja a los 6 repartidores
+> disponibles. Úsalo si algún día ves "no hay ofertas".
 
-Abre el mapa en el navegador: **http://localhost:5173** (`cliente@enruta.test` / `Cliente1234!`).
-Deja esa pestaña a la vista y trabaja en la terminal: verás el marcador moverse mientras tú
-reportas posiciones.
+## Dos pestañas, dos papeles
 
----
+Abre **http://localhost:5173** y verás el selector de rol.
 
-## Terminal 1 — eres el CLIENTE
+### Pestaña 1 — CLIENTE
+
+1. Pulsa **Entrar como cliente** (`cliente@enruta.test` ya está relleno).
+2. Elige una ruta y pulsa el botón: se crea el envío y aparece en el mapa.
+3. Verás `Buscando conductor` hasta que un repartidor acepte.
+
+### Pestaña 2 — REPARTIDOR
+
+Abre una **pestaña nueva** (`Ctrl + T`) y entra a la misma dirección.
+
+1. En la tarjeta "Soy repartidor", elige quién eres (Ana, Beto, Carla, Diego, Elena o Fabio).
+2. Pulsa **Entrar como repartidor**.
+
+Cada pestaña guarda su propia sesión: puedes tener las dos abiertas a la vez, incluso en dos
+monitores.
+
+## La historia completa
+
+| Paso | Dónde | Qué ocurre |
+|---|---|---|
+| 1 | Cliente | crea el envío → `CREATED` |
+| 2 | Repartidor | en ≤ 3 s aparece **"Nueva oferta"** con la distancia y una **cuenta atrás de 90 s** |
+| 3 | Repartidor | pulsa **Aceptar** (o Rechazar) → el envío pasa a `ASSIGNED` |
+| 4 | Repartidor | pulsa **▶ Iniciar recorrido**: el marcador avanza por calles hasta el origen |
+| 5 | Repartidor | al llegar, la app reporta 3 posiciones → **`PICKED_UP`** |
+| 6 | Repartidor | sigue al destino → 3 posiciones → **`DELIVERED`** |
+| 7 | Cliente | el mapa se movió en vivo y el timeline se completó |
+| 8 | Cliente | el correo llegó a **http://localhost:8025** |
+
+El repartidor **decide** aceptar; nada es automático. Si rechaza, el despacho ofrece al siguiente
+candidato y la cuenta atrás vuelve a empezar.
+
+## Repartidor desde el móvil (GPS real)
+
+El mismo repartidor puede conducir con el GPS del teléfono, no con el botón.
+
+### 1. Abrir el túnel (una vez por sesión)
 
 ```bash
-./scripts/cliente.py
+curl -L -o /tmp/cloudflared \
+  https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
+chmod +x /tmp/cloudflared
+/tmp/cloudflared tunnel --url http://localhost:5173
 ```
 
-```
-┌──────────────────────────────────────────────┐
-│            EnRuta · APP CLIENTE              │
-├──────────────────────────────────────────────┤
-│  1) Crear un envio                           │
-│  2) Ver el estado de mi envio                │
-│  3) Seguir en vivo (WebSocket)               │
-│  4) Cancelar mi envio                        │
-│  5) Ver mis envios recientes                 │
-│  6) Abrir el mapa en el navegador            │
-│  0) Salir                                    │
-└──────────────────────────────────────────────┘
-  Opcion:
-```
+Copia la URL `https://algo-random.trycloudflare.com` que imprime.
 
-Pulsa `1` y elige ruta (`1`, `2` o `3`):
+### 2. En el móvil del compañero
 
-```
-  ✔ Envio creado: 9a410018-adbc-4fb3-bfe6-c74de645c422
-    estado: CREATED   PIN de recogida: 0683
-```
+1. Abre esa URL (da igual que esté en otra red: puede usar datos móviles).
+2. **Soy repartidor** → elige **Ana** → entrar.
+3. Opcional: menú del navegador → **Añadir a pantalla de inicio**. Queda como una app.
 
-**Lo que acaba de pasar:** tu petición llegó al gateway con tu JWT, `shipment-service` guardó el
-envío y publicó `shipment.created` en la misma transacción, y `dispatch` lo consumió y empezó a
-buscar repartidor.
+### 3. Conducir con GPS
 
-Deja la terminal del cliente abierta: puedes usar la opción `2` en cualquier momento para ver el
-estado y el historial.
+1. En el PC (cliente), crea el envío.
+2. En el móvil aparece la oferta → **Aceptar**.
+3. En "Tu envío" elige **GPS real** → **▶ Iniciar recorrido** → permite la ubicación.
+4. Camina. En el mapa del PC el marcador se mueve en vivo.
 
----
+### Por qué el túnel y no la IP local
 
-## Terminal 2 — eres el REPARTIDOR
+Los navegadores solo entregan GPS en **contextos seguros** (HTTPS o `localhost`). Por
+`http://192.168.x.x` el permiso de ubicación se deniega. El túnel da HTTPS sin desplegar nada.
 
-Abre **otra** terminal (o una pestaña de terminal) y ejecuta:
+### Si el GPS falla
 
-```bash
-./scripts/repartidor.py
-```
+- Bajo techo la precisión cae a cientos de metros: sal al aire libre.
+- El modo **Simulado** hace el mismo recorrido con el botón, sin GPS.
+- La pantalla se mantiene encendida mientras el GPS está activo (*wake lock*).
 
-Te pregunta qué repartidor eres:
+## Lo que puedes mostrar en la exposición
 
-```
-  ¿Que repartidor eres? (1-6) [1]:
-```
-
-Elige cualquiera (por ejemplo `1` = Ana). Verás el menú:
-
-```
-  1) Ver mis ofertas
-  2) Ver ofertas de toda la flota (a quien fue)
-  3) Aceptar la oferta
-  4) Rechazar la oferta
-  5) Ping GPS: estoy en el ORIGEN
-  6) Ping GPS: estoy en el DESTINO
-  7) Ping GPS: me alejo 500 m
-  8) Conducir automaticamente hasta el destino
-  9) Ver el envio que llevo
-  c) Cambiar de repartidor
-  0) Salir
-```
-
-### Paso 1 — mira a quién le llegó
-
-Pulsa `2`:
-
-```
-  OFERTAS PENDIENTES
-      driver6 (Fabio)  oferta 941b671c-…  envio 9a410018  981 m  vence en 10s
-```
-
-El despacho eligió al más cercano con mejor calificación. Si no es tu repartidor, no pasa nada:
-la app te lo dirá al aceptar.
-
-### Paso 2 — acepta
-
-Pulsa `3`:
-
-```
-  La oferta esta para driver6 (Fabio), no para ti.
-  ¿Aceptar como driver6? (s/n) [s]:
-```
-
-Enter. La app cambia de sesión (JWT de Fabio) y acepta:
-
-```
-  ✔ Oferta aceptada. assignmentId: ec94d255-…
-    El envio pasa a ASSIGNED en 1-3 s (lo veras en el mapa).
-```
-
-**Lo que acaba de pasar:** Redis tomó el lock de la oferta, PostgreSQL confirmó la transición y
-se insertó la asignación con índice único. Si otro hubiera aceptado a la vez, recibiría
-`409 OFFER_ALREADY_CLAIMED`.
-
-### Paso 3 — recoge el paquete
-
-Pulsa `5` **tres veces**:
-
-```
-  ✔ Ping enviado (en el origen)  →  estado del envio: ASSIGNED
-  ✔ Ping enviado (en el origen)  →  estado del envio: ASSIGNED
-  ✔ Ping enviado (en el origen)  →  estado del envio: PICKED_UP
-```
-
-Los dos primeros no cambian nada **a propósito**: la geocerca exige 3 pings consecutivos dentro
-de 100 m para no dispararse por el ruido del GPS. El tercero confirma la recogida.
-
-### Paso 4 — ponte en camino
-
-Pulsa `6`... no: primero `7` (alejarse 500 m):
-
-```
-  ✔ Ping enviado (alejandome 500 m)  →  estado del envio: IN_TRANSIT
-```
-
-Al alejarte más de 150 m del origen, `tracking` publica `trip-started` y el envío pasa a
-`IN_TRANSIT`.
-
-### Paso 5 — entrega
-
-Pulsa `6` tres veces:
-
-```
-  ✔ Ping enviado (en el destino)  →  estado del envio: IN_TRANSIT
-  ✔ Ping enviado (en el destino)  →  estado del envio: IN_TRANSIT
-  ✔ Ping enviado (en el destino)  →  estado del envio: DELIVERED
-```
-
-**Y ya está:** se disparó la geocerca de destino, el envío quedó `DELIVERED`, se publicó
-`notification.requested` y salió el correo. Míralo en **http://localhost:8025**.
-
-### Alternativa: conduce de verdad
-
-Si no quieres ir ping a ping, la opción `8` calcula la ruta con OSRM y reporta posiciones por
-calles hasta el destino (es lo que hace el simulador, pero para tu repartidor).
-
----
-
-## Ver todo lo que ocurrió
-
-```bash
-./scripts/lab.sh estado                  # timeline, posición y ETA del último envío
-./scripts/lab.sh eventos shipment.events # eventos publicados
-```
-
-O en la web: el envío aparece con su historial y, si lo abres, el mapa muestra la ruta recorrida.
+- Dos pestañas lado a lado: a la izquierda el cliente, a la derecha el repartidor.
+- La oferta con cuenta atrás: "mira, no se acepta sola; espera mi decisión".
+- El marcador moviéndose en **las dos** pantallas a la vez (WebSocket).
+- La transición de estados sin tocar nada: la provoca la geocerca.
+- El correo en MailHog.
 
 ## Si algo no sale
 
-| Lo que ves | Qué pasa |
+| Lo que ves | Qué hacer |
 |---|---|
-| "No tienes ofertas ahora mismo" | la oferta dura 15 s y ya expiró; usa `2` para ver a quién fue la siguiente |
-| "No hay ofertas" y no aparece ninguna | hay repartidores ocupados de pruebas viejas o lejos: `./scripts/lab.sh preparar` |
-| "Ese envio no esta asignado a ti" | no aceptaste la oferta de ese envío (o aún no se propagó: espera 2 s) |
-| No cambia de estado tras 3 pings | ¿estás dentro de 100 m del origen / 150 m del destino? Usa las opciones 5 y 6, que mandan la coordenada exacta |
-| El mapa no se mueve | abre la pestaña del mapa y refresca; el WebSocket reconecta solo |
+| El repartidor no recibe oferta | `./scripts/lab.sh preparar` y vuelve a crear el envío |
+| La oferta expiró | el despacho reintenta solo; espera unos segundos |
+| "El envío aún no aparece asignado a ti" | espera 2 s y pulsa de nuevo Aceptar |
+| El mapa está gris | sin internet no cargan las teselas; la ruta y los marcadores sí funcionan |
 
-## Por qué esto es "un proyecto real"
+## Alternativa por terminal (para pruebas técnicas)
 
-- **Dos clientes distintos**, el mismo servidor: un navegador y una terminal, ambos con JWT.
-- **Ningún atajo**: cada botón del menú es una petición HTTP que podrías replicar con `curl`.
-- **El estado no lo decide nadie a mano**: lo mueven eventos y geocercas.
-- **Todo queda auditable**: historial en PostgreSQL, eventos en Kafka, correo en MailHog.
+Si quieres ver las peticiones crudas, los mismos pasos existen como menús:
+
+```bash
+./scripts/cliente.py
+./scripts/repartidor.py
+```
+
+Pero para explicar el proyecto, usa el navegador.

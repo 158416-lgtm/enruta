@@ -14,11 +14,13 @@ mkdir -p logs
 COMPOSE_FILE="$ROOT/infra/docker-compose.yml"
 OPEN_BROWSER=1
 FORCE_BUILD=0
+WITH_SIMULATOR=0
 
 for arg in "$@"; do
   case "$arg" in
     --no-browser) OPEN_BROWSER=0 ;;
     --build) FORCE_BUILD=1 ;;
+    --sim) WITH_SIMULATOR=1 ;;
     --stop)
       "$ROOT/scripts/run-local.sh" --stop
       fuser -k 5173/tcp >/dev/null 2>&1 || true
@@ -75,7 +77,7 @@ else
   echo "==> 4/5 Servicios (jars ya compilados)"
 fi
 
-"$ROOT/scripts/run-local.sh" || exit 1
+WITH_SIMULATOR="$WITH_SIMULATOR" "$ROOT/scripts/run-local.sh" || exit 1
 
 # --- 5. Frontend -------------------------------------------------------------
 echo "==> 5/5 Frontend"

@@ -42,8 +42,8 @@ public class DispatchService {
 
     static final int[] RADII_METERS = {1500, 3000, 5000};
     static final int MAX_ROUNDS = RADII_METERS.length;
-    static final Duration OFFER_TTL = Duration.ofSeconds(15);
-    private static final int CANDIDATES_PER_ROUND = 3;
+    private static final int CANDIDATES_PER_ROUND_DEFAULT = 3;
+
     private static final double AVERAGE_SPEED_MPS = 25_000.0 / 3600.0;
 
     private final DriverRepository drivers;
@@ -53,6 +53,8 @@ public class DispatchService {
     private final CandidateFinder finder;
     private final OutboxAppender outbox;
     private final StringRedisTemplate redis;
+    private final Duration offerTtl;
+    private static final int CANDIDATES_PER_ROUND = CANDIDATES_PER_ROUND_DEFAULT;
 
     public DispatchService(
             DriverRepository drivers,
@@ -61,7 +63,9 @@ public class DispatchService {
             DispatchStateRepository states,
             CandidateFinder finder,
             OutboxAppender outbox,
-            StringRedisTemplate redis) {
+            StringRedisTemplate redis,
+            @org.springframework.beans.factory.annotation.Value("${enruta.dispatch.offer-ttl:90s}")
+                    Duration offerTtl) {
         this.drivers = drivers;
         this.offers = offers;
         this.assignments = assignments;
@@ -69,6 +73,7 @@ public class DispatchService {
         this.finder = finder;
         this.outbox = outbox;
         this.redis = redis;
+        this.offerTtl = offerTtl;
     }
 
     public record AcceptResult(UUID assignmentId, UUID shipmentId, UUID driverId) {}
@@ -193,7 +198,7 @@ public class DispatchService {
                                         state.getRound(),
                                         rankedCandidate.candidate().distanceMeters(),
                                         rankedCandidate.score(),
-                                        Instant.now().plus(OFFER_TTL)));
+                                        Instant.now().plus(offerTtl)));
                 state.markOffered(offer.getId());
                 publishOffer(offer);
                 log.info(
@@ -233,7 +238,7 @@ public class DispatchService {
         }
 
         String claimKey = claimKey(offerId);
-        Boolean claimed = redis.opsForValue().setIfAbsent(claimKey, callerId.toString(), OFFER_TTL);
+        Boolean claimed = redis.opsForValue().setIfAbsent(claimKey, callerId.toString(), offerTtl);
         if (!Boolean.TRUE.equals(claimed)) {
             throw BusinessException.conflict(
                     "OFFER_ALREADY_CLAIMED", "Otro conductor tomo esta oferta");

@@ -38,7 +38,16 @@ class DispatchServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new DispatchService(drivers, offers, assignments, states, finder, outbox, redis);
+        service =
+                new DispatchService(
+                        drivers,
+                        offers,
+                        assignments,
+                        states,
+                        finder,
+                        outbox,
+                        redis,
+                        java.time.Duration.ofSeconds(90));
     }
 
     @Test

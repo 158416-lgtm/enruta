@@ -17,7 +17,8 @@ public class WebSocketConfig implements WebSocketConfigurer {
 
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
-        registry.addHandler(handler, "/ws/tracking")
-                .setAllowedOriginPatterns("http://localhost:*", "http://127.0.0.1:*");
+        // En demo el mapa se abre por un tunel (https://*.trycloudflare.com) y desde el movil en
+        // la LAN, asi que no se puede fijar el host. El handshake sigue exigiendo JWT valido.
+        registry.addHandler(handler, "/ws/tracking").setAllowedOriginPatterns("*");
     }
 }

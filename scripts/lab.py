@@ -492,6 +492,7 @@ def cmd_preparar(_args):
             f"docker compose -f {ROOT}/infra/docker-compose.yml exec -T postgres "
             "psql -U enruta -d dispatchdb -c "
             "\"update assignments set status='CANCELLED', ended_at=now() where status='ACTIVE'; "
+            "update offers set status='SUPERSEDED' where status='CREATED'; "
             'update drivers set status=\'AVAILABLE\' where status=\'BUSY\';"',
         ],
         capture_output=True,
@@ -503,15 +504,15 @@ def cmd_preparar(_args):
     print("\n  Ubicando a los 6 repartidores alrededor del centro…")
     for number in range(1, len(DRIVERS) + 1):
         token = login(f"driver{number}")
-        offset = (number - 3) * 0.0012
+        # Ana (driver1) queda la mas cerca del centro: el despacho la elegira para el preset "parque".
+        offset = 0.0002 + (number - 1) * 0.0004
+        # dispatch guarda la posicion en su base y, al marcarse disponible, la indexa en Redis GEO.
         http(
             "POST",
-            f"{TRACKING}/api/v1/tracking/drivers/{driver_id(number)}/location",
-            {"points": [{"lat": centro[0] + offset, "lng": centro[1] - offset}]},
+            f"{GATEWAY}/api/v1/drivers/{driver_id(number)}/location",
+            {"lat": centro[0] + offset, "lng": centro[1] - offset},
             token,
         )
-        time.sleep(0.4)
-        # Marcar disponible es lo que mete al conductor en el indice geografico de dispatch.
         http(
             "POST",
             f"{GATEWAY}/api/v1/drivers/{driver_id(number)}/availability",

@@ -70,6 +70,18 @@ public class TrackingReadModel {
                                 shipmentId);
                     }
                 }
+                case EventTypes.SHIPMENT_STATUS_CHANGED -> {
+                    String status = payload.path("status").asText();
+                    if ("DELIVERED".equals(status)
+                            || "FAILED".equals(status)
+                            || "CANCELLED".equals(status)) {
+                        Object driverId =
+                                redis.opsForHash().get("shipment:" + shipmentId, "driverId");
+                        if (driverId != null) {
+                            redis.delete("driver:" + driverId + ":shipment");
+                        }
+                    }
+                }
                 case EventTypes.SHIPMENT_DELIVERED,
                         EventTypes.SHIPMENT_FAILED,
                         EventTypes.SHIPMENT_CANCELLED -> {

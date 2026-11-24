@@ -46,6 +46,7 @@ enruta:
     poll-interval-ms: 500
   dispatch:
     seed: ${DISPATCH_SEED:true}
+    offer-ttl: ${OFFER_TTL:90s}
     expiry-poll-ms: 1000
     expiry-initial-delay-ms: 3000
 management:

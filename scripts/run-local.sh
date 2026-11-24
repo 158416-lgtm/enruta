@@ -74,12 +74,16 @@ if [ "$healthy" -ne 7 ]; then
   exit 1
 fi
 
-AUTH_URL=http://localhost:18081 DISPATCH_URL=http://localhost:18083 \
-  SHIPMENT_URL=http://localhost:18082 TRACKING_URL=http://localhost:8084 \
-  OSRM_BASE_URL=http://localhost:5000 SERVER_PORT=8090 \
-  nohup java -jar tools/driver-simulator/target/driver-simulator-0.1.0-SNAPSHOT.jar > logs/simulator.log 2>&1 </dev/null &
-
-sleep 10
+if [ "${WITH_SIMULATOR:-1}" = "1" ]; then
+  echo "==> simulador de conductores ACTIVO (usa WITH_SIMULATOR=0 para apagarlo)"
+  AUTH_URL=http://localhost:18081 DISPATCH_URL=http://localhost:18083 \
+    SHIPMENT_URL=http://localhost:18082 TRACKING_URL=http://localhost:8084 \
+    OSRM_BASE_URL=http://localhost:5000 SERVER_PORT=8090 \
+    nohup java -jar tools/driver-simulator/target/driver-simulator-0.1.0-SNAPSHOT.jar > logs/simulator.log 2>&1 </dev/null &
+  sleep 8
+else
+  echo "==> simulador APAGADO: los repartidores son personas"
+fi
 
 cat <<EOF
 
