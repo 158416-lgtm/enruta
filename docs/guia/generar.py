@@ -194,6 +194,71 @@ def card(number, name, role, keeps, color, tint):
     return KeepTogether([row, Spacer(1, 7)])
 
 
+
+def ficha(number, name, tech, recibe, hace, guarda, avisa, ejemplo, color, tint):
+    """Ficha de funcionamiento de un servicio: entrada, proceso, datos, salida y ejemplo real."""
+    head = Table(
+        [[
+            Paragraph(str(number), style("fn", 12, 14, color, bold=True, align=TA_CENTER)),
+            Paragraph(f"{name}  <font size=8>· {tech}</font>", style("fh", 12, 14, PAPER, bold=True)),
+        ]],
+        colWidths=[28, WIDTH - 28],
+    )
+    head.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (0, 0), PAPER),
+                ("BACKGROUND", (1, 0), (1, 0), color),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("LEFTPADDING", (1, 0), (1, 0), 10),
+                ("TOPPADDING", (0, 0), (-1, -1), 7),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+                ("ROUNDEDCORNERS", [8, 8, 8, 8]),
+            ]
+        )
+    )
+
+    body = Table(
+        [
+            [Paragraph("Le llega", style("fk", 8.6, 11, color, bold=True)), Paragraph(recibe, style("fv", 9, 12.5, SOFT))],
+            [Paragraph("Hace", style("fk", 8.6, 11, color, bold=True)), Paragraph(hace, style("fv", 9, 12.5, SOFT))],
+            [Paragraph("Guarda", style("fk", 8.6, 11, color, bold=True)), Paragraph(guarda, style("fv", 9, 12.5, SOFT))],
+            [Paragraph("Avisa", style("fk", 8.6, 11, color, bold=True)), Paragraph(avisa, style("fv", 9, 12.5, SOFT))],
+        ],
+        colWidths=[54, WIDTH - 54],
+    )
+    body.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), tint),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+                ("TOPPADDING", (0, 0), (-1, -1), 4),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                ("LINEBELOW", (0, 0), (-1, -2), 0.3, colors.HexColor("#ffffff")),
+            ]
+        )
+    )
+
+    example = Paragraph(
+        f"<b>En el proyecto:</b> {ejemplo}", style("fe", 8.6, 11.5, MUTED)
+    )
+    example_box = Table([[example]], colWidths=[WIDTH])
+    example_box.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#f8fafc")),
+                ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+                ("TOPPADDING", (0, 0), (-1, -1), 5),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+            ]
+        )
+    )
+    return KeepTogether([head, body, example_box, Spacer(1, 9)])
+
+
 def flow(steps, color):
     """Fila horizontal de cajas con flechas."""
     cells, widths = [], []
@@ -397,6 +462,86 @@ def build():
             "Truco para recordarlo",
             "Portero → Recepcionista → Jefe de pedidos → Coordinador → Rastreador → Navegador → Cartero. "
             "Es el mismo orden en el que viaja un pedido.",
+            PURPLE,
+            PURPLE_T,
+        ),
+        Spacer(1, 4),
+        p("<b>Ahora, cómo funciona cada uno</b>", style("fh2", 12, 15, INK, bold=True)),
+        p("Las tarjetas de arriba dicen <i>qué es</i>. Estas fichas dicen <i>qué hace</i>, con lo que pasa de verdad en el proyecto."),
+        Spacer(1, 6),
+        ficha(
+            1, "El portero", "api-gateway",
+            "Cualquier petición del navegador o del móvil.",
+            "Valida el carné (JWT) contra la llave pública del recepcionista. Mira la ruta y la reenvía al servicio que toca. Añade un identificador de petición y limita el ritmo.",
+            "Nada. Es una puerta, no un archivo.",
+            "No avisa: reenvía la petición y devuelve la respuesta.",
+            "<code>POST /api/v1/shipments</code> llega al portero y él lo manda a <code>shipment:8082</code>.",
+            PURPLE, PURPLE_T,
+        ),
+        ficha(
+            2, "El recepcionista", "auth-service",
+            "Correo y contraseña; y la petición de la llave pública.",
+            "Comprueba la contraseña con BCrypt. Firma un JWT con tu id, tus roles y 15 minutos de vida. Emite además un refresh de 7 días.",
+            "Usuarios, roles y refresh tokens (guardados como hash).",
+            "Nada: responde con el carné firmado.",
+            "<code>POST /api/v1/auth/login</code> → <code>{accessToken, refreshToken, expiresIn: 900}</code>.",
+            BLUE, BLUE_T,
+        ),
+        ficha(
+            3, "El jefe de pedidos", "shipment-service",
+            "Crear, consultar y cancelar; y los avisos de los otros servicios.",
+            "Guarda el envío y su historial. Valida que el cambio de estado sea legal. En la misma transacción escribe el aviso en su outbox.",
+            "Envíos, historial, outbox e idempotencia.",
+            "<code>shipment.created</code>, <code>assigned</code>, <code>status-changed</code>, <code>delivered</code> y el aviso al cartero.",
+            "Crear un envío tarda ~40 ms y el evento sale a Kafka en menos de 1 s.",
+            GREEN, GREEN_T,
+        ),
+        PageBreak(),
+        section(2, "Los 7 personajes · cómo funcionan (2/3)", PURPLE),
+        ficha(
+            4, "El coordinador", "dispatch-service",
+            "El aviso de pedido creado; la aceptación del repartidor; su disponibilidad.",
+            "Busca en el mapa de Redis quién está a menos de 1,5 km. Puntúa 70 % cercanía + 30 % calificación. Crea una oferta de 90 s. Al aceptar, aplica los tres candados. Al entregar, libera al repartidor.",
+            "Repartidores, ofertas, asignaciones y el estado del despacho.",
+            "<code>dispatch.offer-created</code>, <code>dispatch.assigned</code>, <code>assignment-cancelled</code> y <code>dispatch.failed</code>.",
+            "En la demo la oferta salió a 31 m y duró 90 s.",
+            ORANGE, ORANGE_T,
+        ),
+        ficha(
+            5, "El rastreador", "tracking-service",
+            "Los pings GPS del móvil (lotes de hasta 10) y los avisos de envío.",
+            "Responde 202 al instante y publica el ping en Kafka. Un consumidor actualiza Redis, evalúa la geocerca con 3 pings seguidos y empuja la posición por WebSocket.",
+            "Solo en Redis: última posición, qué envío lleva cada uno y contadores de geocerca. No tiene base de datos.",
+            "<code>tracking.geofence-entered</code> (origen/destino) y <code>tracking.trip-started</code>.",
+            "Tres pings a 31 m del origen → el envío pasa a <code>PICKED_UP</code>.",
+            CYAN, CYAN_T,
+        ),
+        PageBreak(),
+        section(2, "Los 7 personajes · cómo funcionan (3/3)", PURPLE),
+        ficha(
+            6, "El navegador", "routing-eta-service",
+            "Preguntas del tipo “¿cuánto falta de aquí a allá?”.",
+            "Consulta OSRM por calles. Guarda la respuesta 20 s en caché. Si OSRM no responde en 2 s, corta el circuito y estima en línea recta.",
+            "Solo la caché de rutas en Redis.",
+            "No avisa: responde con distancia, duración y de dónde salió el dato.",
+            "2.529 m / 273 s desde OSRM; la segunda llamada llega con <code>cached: true</code>.",
+            PINK, PINK_T,
+        ),
+        ficha(
+            7, "El cartero", "notification-service",
+            "El aviso “manda este correo” que deja el jefe de pedidos.",
+            "Guarda la notificación como pendiente. La envía por SMTP. Si falla, reintenta a los 2 s, 10 s y 30 s. Tras tres intentos la marca como fallida y la aparta.",
+            "Notificaciones, intentos y último error.",
+            "A la bandeja de fallos <code>notification.commands.dlq</code>.",
+            "<code>SHIPMENT_DELIVERED → SENT · intentos=1</code> y el correo aparece en MailHog.",
+            AMBER, AMBER_T,
+        ),
+        Spacer(1, 6),
+        callout(
+            "Fíjate en el patrón",
+            "Cuatro servicios <b>guardan</b> algo en una base de datos y tres <b>no</b>: el portero solo pasa, "
+            "el rastreador vive en memoria y el navegador solo cachea. Cada uno guarda exactamente lo que necesita, "
+            "ni más ni menos.",
             PURPLE,
             PURPLE_T,
         ),
