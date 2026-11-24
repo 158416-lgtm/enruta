@@ -1,0 +1,155 @@
+==========================================================
+  EnRuta - COMANDOS PARA LA EXPOSICION
+  (guarda este archivo; esta todo lo que necesitas)
+==========================================================
+
+  LINK DEL MOVIL (Cloudflare) - hoy:
+
+      https://regularly-deutschland-camcorder-own.trycloudflare.com
+
+  IMPORTANTE: este link cambia cada vez que reinicias el tunel.
+  Si deja de funcionar, ejecuta:
+
+      cd /home/kevin/enruta
+      ./scripts/tunel.sh
+
+  ...y te imprime un link nuevo. El movil y el PC NO necesitan
+  estar en la misma red: basta con que ambos tengan internet.
+
+
+----------------------------------------------------------
+ 1) ENCENDER TODO  (una vez por sesion)
+----------------------------------------------------------
+
+  Abre una terminal con Ctrl + Alt + T y escribe:
+
+      cd /home/kevin/enruta
+      ./scripts/start.sh
+
+  Espera a ver:
+
+      EnRuta listo - 7/7 servicios sanos
+
+  Tarda ~90 segundos. Se abre el navegador solo.
+  Si no se abre, entra a mano a:  http://localhost:5173
+
+  (El simulador de conductores queda APAGADO, para que tu o tu
+   companero seais los repartidores. Si algun dia lo quieres
+   automatico: ./scripts/start.sh --sim )
+
+
+----------------------------------------------------------
+ 2) ANTES DE EMPEZAR (deja el tablero limpio)
+----------------------------------------------------------
+
+      cd /home/kevin/enruta
+      ./scripts/lab.sh preparar
+      ./scripts/lab.sh reset
+
+  "preparar" libera a los 6 repartidores y los acerca al centro.
+  Hazlo al inicio de cada sesion de pruebas.
+
+
+----------------------------------------------------------
+ 3) LAS VENTANAS DE LA DEMO
+----------------------------------------------------------
+
+  A) VISOR DE SERVICIOS (terminal) - se ve quien hace que:
+
+      cd /home/kevin/enruta
+      ./scripts/ver-servicios.sh
+
+  B) CLIENTE (navegador):
+
+      http://localhost:5173
+      -> "Entrar como cliente"
+
+  C) REPARTIDOR (otra pestana del navegador o el movil):
+
+      http://localhost:5173   (o el link de Cloudflare)
+      -> "Soy repartidor" -> elige Ana -> entrar
+
+  En el cliente, pestana "Los 7 servicios": ahi ves las 7
+  tarjetas (portero, recepcionista, jefe de pedidos, coordinador,
+  rastreador, navegador, cartero) con lo que hace cada una.
+
+
+----------------------------------------------------------
+ 4) USUARIOS
+----------------------------------------------------------
+
+      cliente@enruta.test   / Cliente1234!
+      admin@enruta.test     / Admin1234!
+      driver1@enruta.test   / Driver1234!   (Ana)
+      driver2@enruta.test   / Driver1234!   (Beto)
+      driver3@enruta.test   / Driver1234!   (Carla)
+      driver4@enruta.test   / Driver1234!   (Diego)
+      driver5@enruta.test   / Driver1234!   (Elena)
+      driver6@enruta.test   / Driver1234!   (Fabio)
+
+
+----------------------------------------------------------
+ 5) COMANDOS UTILES
+----------------------------------------------------------
+
+  Encender todo ................ ./scripts/start.sh
+  Encender sin abrir navegador . ./scripts/start.sh --no-browser
+  Encender con simulador ....... ./scripts/start.sh --sim
+  Recompilar y encender ........ ./scripts/start.sh --build
+  Apagar todo .................. ./scripts/start.sh --stop
+
+  Nuevo link del movil ......... ./scripts/tunel.sh
+  Visor de los 7 servicios ..... ./scripts/ver-servicios.sh
+  Liberar repartidores ......... ./scripts/lab.sh preparar
+  Crear un envio de prueba ..... ./scripts/lab.sh crear
+  Ver ofertas pendientes ....... ./scripts/lab.sh ofertas
+  Ver el envio actual .......... ./scripts/lab.sh estado
+  Comprobar que todo esta bien . ./scripts/preflight.sh
+
+
+----------------------------------------------------------
+ 6) ENLACES LOCALES (en tu PC)
+----------------------------------------------------------
+
+      Mapa / app ....... http://localhost:5173
+      Grafana .......... http://localhost:3000
+      MailHog (correos). http://localhost:8025
+      Prometheus ....... http://localhost:9090
+
+
+----------------------------------------------------------
+ 7) APAGAR
+----------------------------------------------------------
+
+      cd /home/kevin/enruta
+      ./scripts/start.sh --stop
+
+
+----------------------------------------------------------
+ 8) SI ALGO FALLA
+----------------------------------------------------------
+
+  1. ./scripts/preflight.sh     (dice exactamente que falta)
+  2. Los errores quedan en /home/kevin/enruta/logs/
+     (un archivo por servicio)
+  3. Si el link del movil no abre: ./scripts/tunel.sh y usa el nuevo
+  4. Si no hay ofertas: ./scripts/lab.sh preparar
+
+
+----------------------------------------------------------
+ 9) GUION RAPIDO DE LA DEMO (2 minutos)
+----------------------------------------------------------
+
+  1. Cliente crea el envio          -> CREATED
+  2. Ana (movil o pestana) ve la oferta con cuenta atras -> Aceptar
+  3. El envio pasa a ASSIGNED
+  4. Ana pulsa "Iniciar recorrido" (GPS real en el movil)
+  5. Camina: el marcador del cliente se mueve en vivo
+  6. Llega al origen  -> PICKED_UP
+  7. Se aleja         -> IN_TRANSIT
+  8. Llega al destino -> DELIVERED
+  9. MailHog: correo "Tu envio fue entregado"
+
+==========================================================
+  Fin. Si algo no coincide con esto, avisa y lo revisamos.
+==========================================================
