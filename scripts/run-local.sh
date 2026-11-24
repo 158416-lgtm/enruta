@@ -28,35 +28,35 @@ sleep 2
 
 echo "==> arrancando servicios"
 DB_URL="jdbc:postgresql://localhost:5433/authdb" AUTH_JWK_PATH="$JWK" SERVER_PORT=18081 \
-  nohup java -jar services/auth-service/target/auth-service-0.1.0-SNAPSHOT.jar > logs/auth.log 2>&1 &
+  nohup java -jar services/auth-service/target/auth-service-0.1.0-SNAPSHOT.jar > logs/auth.log 2>&1 </dev/null &
 
 DB_URL="jdbc:postgresql://localhost:5433/shipmentdb" KAFKA_BOOTSTRAP=localhost:29092 \
   AUTH_JWKS_URI=http://localhost:18081/api/v1/auth/jwks SERVER_PORT=18082 \
-  nohup java -jar services/shipment-service/target/shipment-service-0.1.0-SNAPSHOT.jar > logs/shipment.log 2>&1 &
+  nohup java -jar services/shipment-service/target/shipment-service-0.1.0-SNAPSHOT.jar > logs/shipment.log 2>&1 </dev/null &
 
 DB_URL="jdbc:postgresql://localhost:5433/dispatchdb" KAFKA_BOOTSTRAP=localhost:29092 \
   REDIS_HOST=localhost AUTH_JWKS_URI=http://localhost:18081/api/v1/auth/jwks SERVER_PORT=18083 \
-  nohup java -jar services/dispatch-service/target/dispatch-service-0.1.0-SNAPSHOT.jar > logs/dispatch.log 2>&1 &
+  nohup java -jar services/dispatch-service/target/dispatch-service-0.1.0-SNAPSHOT.jar > logs/dispatch.log 2>&1 </dev/null &
 
 KAFKA_BOOTSTRAP=localhost:29092 REDIS_HOST=localhost \
   AUTH_JWKS_URI=http://localhost:18081/api/v1/auth/jwks ROUTING_URL=http://localhost:8085 \
   SERVER_PORT=8084 \
-  nohup java -jar services/tracking-service/target/tracking-service-0.1.0-SNAPSHOT.jar > logs/tracking.log 2>&1 &
+  nohup java -jar services/tracking-service/target/tracking-service-0.1.0-SNAPSHOT.jar > logs/tracking.log 2>&1 </dev/null &
 
 OSRM_BASE_URL=http://localhost:5000 AUTH_JWKS_URI=http://localhost:18081/api/v1/auth/jwks \
   SERVER_PORT=8085 \
-  nohup java -jar services/routing-eta-service/target/routing-eta-service-0.1.0-SNAPSHOT.jar > logs/routing.log 2>&1 &
+  nohup java -jar services/routing-eta-service/target/routing-eta-service-0.1.0-SNAPSHOT.jar > logs/routing.log 2>&1 </dev/null &
 
 DB_URL="jdbc:postgresql://localhost:5433/notifdb" KAFKA_BOOTSTRAP=localhost:29092 \
   AUTH_JWKS_URI=http://localhost:18081/api/v1/auth/jwks MAIL_HOST=localhost MAIL_PORT=1025 \
   SERVER_PORT=8086 \
-  nohup java -jar services/notification-service/target/notification-service-0.1.0-SNAPSHOT.jar > logs/notification.log 2>&1 &
+  nohup java -jar services/notification-service/target/notification-service-0.1.0-SNAPSHOT.jar > logs/notification.log 2>&1 </dev/null &
 
 AUTH_URI=http://localhost:18081 SHIPMENT_URI=http://localhost:18082 \
   DISPATCH_URI=http://localhost:18083 TRACKING_URI=http://localhost:8084 \
   ROUTING_URI=http://localhost:8085 NOTIFICATION_URI=http://localhost:8086 \
   AUTH_JWKS_URI=http://localhost:18081/api/v1/auth/jwks SERVER_PORT=18080 \
-  nohup java -jar services/api-gateway/target/api-gateway-0.1.0-SNAPSHOT.jar > logs/gateway.log 2>&1 &
+  nohup java -jar services/api-gateway/target/api-gateway-0.1.0-SNAPSHOT.jar > logs/gateway.log 2>&1 </dev/null &
 
 echo "==> esperando salud"
 healthy=0
@@ -77,7 +77,7 @@ fi
 AUTH_URL=http://localhost:18081 DISPATCH_URL=http://localhost:18083 \
   SHIPMENT_URL=http://localhost:18082 TRACKING_URL=http://localhost:8084 \
   OSRM_BASE_URL=http://localhost:5000 SERVER_PORT=8090 \
-  nohup java -jar tools/driver-simulator/target/driver-simulator-0.1.0-SNAPSHOT.jar > logs/simulator.log 2>&1 &
+  nohup java -jar tools/driver-simulator/target/driver-simulator-0.1.0-SNAPSHOT.jar > logs/simulator.log 2>&1 </dev/null &
 
 sleep 10
 
