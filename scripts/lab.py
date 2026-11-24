@@ -458,6 +458,74 @@ def cmd_simon(_args):
     print("\n  Simulador arrancado (6 conductores).\n")
 
 
+def cmd_preparar(_args):
+    """Deja el tablero listo: cancela envios abiertos y ubica a los 6 repartidores en el centro."""
+    admin = login("admin")
+    status, page = http(
+        "GET", f"{GATEWAY}/api/v1/shipments?page=0&size=50", token=admin
+    )
+    if status != 200:
+        die(f"no se pudieron listar los envios: {page}")
+
+    abiertos = [
+        s
+        for s in page["content"]
+        if s["status"] not in ("DELIVERED", "CANCELLED", "FAILED", "NO_DRIVER")
+    ]
+    print(f"\n  Cancelando {len(abiertos)} envio(s) abiertos de pruebas anteriores…")
+    for shipment in abiertos:
+        code, payload = http(
+            "POST", f"{GATEWAY}/api/v1/shipments/{shipment['id']}/cancel", token=admin
+        )
+        marca = "ok" if code == 200 else f"{code}"
+        print(f"    {shipment['id'][:8]}  {shipment['status']:10} → {marca}")
+
+    time.sleep(2)
+
+    # Red de seguridad: asignaciones huerfanas de pruebas viejas (no hay endpoint para listarlas).
+    print("\n  Limpiando asignaciones huerfanas…")
+    subprocess.run(
+        [
+            "sg",
+            "docker",
+            "-c",
+            f"docker compose -f {ROOT}/infra/docker-compose.yml exec -T postgres "
+            "psql -U enruta -d dispatchdb -c "
+            "\"update assignments set status='CANCELLED', ended_at=now() where status='ACTIVE'; "
+            'update drivers set status=\'AVAILABLE\' where status=\'BUSY\';"',
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+    # Cada repartidor "abre su app" y reporta una posicion cerca del centro.
+    centro = (4.3449, -74.3674)
+    print("\n  Ubicando a los 6 repartidores alrededor del centro…")
+    for number in range(1, len(DRIVERS) + 1):
+        token = login(f"driver{number}")
+        offset = (number - 3) * 0.0012
+        http(
+            "POST",
+            f"{TRACKING}/api/v1/tracking/drivers/{driver_id(number)}/location",
+            {"points": [{"lat": centro[0] + offset, "lng": centro[1] - offset}]},
+            token,
+        )
+        time.sleep(0.4)
+        # Marcar disponible es lo que mete al conductor en el indice geografico de dispatch.
+        http(
+            "POST",
+            f"{GATEWAY}/api/v1/drivers/{driver_id(number)}/availability",
+            {"status": "AVAILABLE"},
+            token,
+        )
+    time.sleep(1)
+
+    print("\n  Listo: 6 repartidores disponibles y cerca del centro.")
+    print("  Ahora crea un envio y mira las ofertas:\n")
+    print("    ./scripts/lab.sh crear")
+    print("    ./scripts/lab.sh ofertas\n")
+
+
 def cmd_reset(_args):
     if os.path.isdir(STATE_DIR):
         for name in os.listdir(STATE_DIR):
@@ -478,6 +546,7 @@ COMMANDS = {
     "eventos": cmd_eventos,
     "simoff": cmd_simoff,
     "simon": cmd_simon,
+    "preparar": cmd_preparar,
     "reset": cmd_reset,
 }
 

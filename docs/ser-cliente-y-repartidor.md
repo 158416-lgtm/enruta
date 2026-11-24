@@ -15,9 +15,14 @@ mismos endpoints con su JWT. No hay atajos ni acceso a la base de datos.
 ```bash
 cd /home/kevin/enruta
 ./scripts/start.sh              # todo arriba
-./scripts/lab.sh simoff         # apaga el simulador: los ofertas quedan para ti
+./scripts/lab.sh simoff         # apaga el simulador: las ofertas quedan para ti
+./scripts/lab.sh preparar       # deja los 6 repartidores libres y cerca del centro
 ./scripts/lab.sh reset          # limpia el estado del laboratorio
 ```
+
+> **Si "no hay ofertas":** ejecuta `./scripts/lab.sh preparar`. Deja el tablero limpio (cancela
+> envíos abiertos de pruebas anteriores, libera a los repartidores y los reindexa en el mapa).
+> Úsalo al empezar cada sesión de pruebas.
 
 Abre el mapa en el navegador: **http://localhost:5173** (`cliente@enruta.test` / `Cliente1234!`).
 Deja esa pestaña a la vista y trabaja en la terminal: verás el marcador moverse mientras tú
@@ -182,6 +187,7 @@ O en la web: el envío aparece con su historial y, si lo abres, el mapa muestra 
 | Lo que ves | Qué pasa |
 |---|---|
 | "No tienes ofertas ahora mismo" | la oferta dura 15 s y ya expiró; usa `2` para ver a quién fue la siguiente |
+| "No hay ofertas" y no aparece ninguna | hay repartidores ocupados de pruebas viejas o lejos: `./scripts/lab.sh preparar` |
 | "Ese envio no esta asignado a ti" | no aceptaste la oferta de ese envío (o aún no se propagó: espera 2 s) |
 | No cambia de estado tras 3 pings | ¿estás dentro de 100 m del origen / 150 m del destino? Usa las opciones 5 y 6, que mandan la coordenada exacta |
 | El mapa no se mueve | abre la pestaña del mapa y refresca; el WebSocket reconecta solo |

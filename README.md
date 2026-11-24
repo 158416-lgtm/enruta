@@ -110,7 +110,7 @@ docker compose -f infra/docker-compose.yml --profile obs up -d prometheus grafan
 ## Juega los dos papeles
 
 ```bash
-./scripts/start.sh && ./scripts/lab.sh simoff && ./scripts/lab.sh reset
+./scripts/start.sh && ./scripts/lab.sh simoff && ./scripts/lab.sh preparar && ./scripts/lab.sh reset
 
 # Terminal 1 (cliente):  crear un envio
 ./scripts/cliente.py
