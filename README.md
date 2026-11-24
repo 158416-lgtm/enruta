@@ -156,6 +156,7 @@ p95 < 200 ms.
 | [`docs/exposicion.md`](docs/exposicion.md) | guion de 10–12 min, slides y preguntas probables |
 | [`docs/operacion.md`](docs/operacion.md) | arranque, k6, observabilidad y problemas frecuentes |
 | [`docs/laboratorio.md`](docs/laboratorio.md) | **guía práctica**: opera el sistema como cliente y repartidor |
+| [`docs/enruta-explicado-con-plastilina.pdf`](docs/enruta-explicado-con-plastilina.pdf) | **PDF de 11 páginas**: los microservicios explicados con analogías y colores |
 | [`docs/adr/`](docs/adr) | 13 decisiones con alternativas descartadas |
 
 ## Decisiones
