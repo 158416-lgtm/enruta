@@ -107,6 +107,19 @@ docker compose -f infra/docker-compose.yml --profile obs up -d prometheus grafan
 - Prometheus en `:9090` (8 targets: 7 servicios + él mismo).
 - Grafana en `:3000`, dashboard **EnRuta · plataforma** provisionado y accesible de forma anónima.
 
+## Laboratorio (opera el sistema tú mismo)
+
+```bash
+./scripts/lab.sh simoff          # apaga el simulador: ahora tú eres el repartidor
+./scripts/lab.sh crear           # crea un envío como cliente
+./scripts/lab.sh ofertas         # mira la oferta que te llega
+./scripts/lab.sh aceptar         # acéptala
+./scripts/lab.sh conducir        # conduce hasta el destino (o usa 'mover')
+```
+
+Guía completa con pruebas de idempotencia, doble aceptación simultánea, Kafka y resiliencia en
+[`docs/laboratorio.md`](docs/laboratorio.md).
+
 ## Prueba de carga
 
 ```bash
@@ -123,6 +136,7 @@ p95 < 200 ms.
 | [`docs/c4.md`](docs/c4.md) | diagramas C4 y secuencias (Mermaid) |
 | [`docs/exposicion.md`](docs/exposicion.md) | guion de 10–12 min, slides y preguntas probables |
 | [`docs/operacion.md`](docs/operacion.md) | arranque, k6, observabilidad y problemas frecuentes |
+| [`docs/laboratorio.md`](docs/laboratorio.md) | **guía práctica**: opera el sistema como cliente y repartidor |
 | [`docs/adr/`](docs/adr) | 13 decisiones con alternativas descartadas |
 
 ## Decisiones

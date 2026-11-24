@@ -46,6 +46,20 @@ public class GlobalExceptionHandler {
         return problem;
     }
 
+    /** Un UUID o un enum mal escrito es un error del cliente, no del servidor. */
+    @ExceptionHandler(
+            org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class)
+    public ProblemDetail handleTypeMismatch(
+            org.springframework.web.method.annotation.MethodArgumentTypeMismatchException ex) {
+        ProblemDetail problem =
+                ProblemDetail.forStatusAndDetail(
+                        HttpStatus.BAD_REQUEST,
+                        "Parametro invalido: " + ex.getName() + " = " + ex.getValue());
+        problem.setTitle("VALIDATION_ERROR");
+        problem.setProperty("code", "VALIDATION_ERROR");
+        return problem;
+    }
+
     @ExceptionHandler(ConstraintViolationException.class)
     public ProblemDetail handleConstraint(ConstraintViolationException ex) {
         ProblemDetail problem =
