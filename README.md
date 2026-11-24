@@ -107,6 +107,21 @@ docker compose -f infra/docker-compose.yml --profile obs up -d prometheus grafan
 - Prometheus en `:9090` (8 targets: 7 servicios + él mismo).
 - Grafana en `:3000`, dashboard **EnRuta · plataforma** provisionado y accesible de forma anónima.
 
+## Juega los dos papeles
+
+```bash
+./scripts/start.sh && ./scripts/lab.sh simoff && ./scripts/lab.sh reset
+
+# Terminal 1 (cliente):  crear un envio
+./scripts/cliente.py
+
+# Terminal 2 (repartidor): ver ofertas, aceptar, reportar GPS
+./scripts/repartidor.py
+```
+
+Guía paso a paso con lo que debes ver en cada momento:
+[`docs/ser-cliente-y-repartidor.md`](docs/ser-cliente-y-repartidor.md).
+
 ## Laboratorio (opera el sistema tú mismo)
 
 ```bash
