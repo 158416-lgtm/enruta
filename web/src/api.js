@@ -14,7 +14,29 @@ export const DRIVERS = [
   { number: 6, id: '11111111-1111-1111-1111-111111111106', name: 'Fabio' }
 ]
 
+/** Contadores en vivo: cuantas peticiones ha atendido cada personaje. */
+export const stats = {
+  gateway: 0,
+  auth: 0,
+  shipment: 0,
+  dispatch: 0,
+  tracking: 0,
+  routing: 0,
+  notification: 0
+}
+
+function countFor(path) {
+  stats.gateway += 1
+  if (path.startsWith('/api/v1/auth')) stats.auth += 1
+  else if (path.startsWith('/api/v1/shipments')) stats.shipment += 1
+  else if (path.startsWith('/api/v1/offers') || path.startsWith('/api/v1/drivers') || path.startsWith('/api/v1/dispatch')) stats.dispatch += 1
+  else if (path.startsWith('/api/v1/tracking')) stats.tracking += 1
+  else if (path.startsWith('/api/v1/eta')) stats.routing += 1
+  else if (path.startsWith('/api/v1/notifications')) stats.notification += 1
+}
+
 async function request(path, { token, method = 'GET', body } = {}) {
+  countFor(path)
   const response = await fetch(`${BASE}${path}`, {
     method,
     headers: {
@@ -56,6 +78,10 @@ export const api = {
   getShipment: (token, id) => request(`/api/v1/shipments/${id}`, { token }),
 
   trackingState: (token, id) => request(`/api/v1/tracking/shipments/${id}`, { token }),
+
+  dispatchState: (token, id) => request(`/api/v1/dispatch/shipments/${id}`, { token }),
+
+  notifications: (token, id) => request(`/api/v1/notifications?shipmentId=${id}`, { token }),
 
   driverOffers: (token, driverId) =>
     request(`/api/v1/drivers/${driverId}/offers`, { token }),

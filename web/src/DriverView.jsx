@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import MapView from './Map.jsx'
 import { api, DRIVERS } from './api.js'
-import { STATUS_LABEL } from './ClientView.jsx'
+import { STATUS_LABEL } from './labels.js'
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 

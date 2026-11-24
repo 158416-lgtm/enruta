@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import MapView from './Map.jsx'
+import ServicesPanel from './ServicesPanel.jsx'
 import { api, createShipment, openTrackingSocket } from './api.js'
+import { STATUS_LABEL } from './labels.js'
 
 const PRESETS = [
   {
@@ -20,17 +22,6 @@ const PRESETS = [
   }
 ]
 
-export const STATUS_LABEL = {
-  CREATED: 'Buscando conductor',
-  ASSIGNED: 'Conductor asignado',
-  PICKED_UP: 'Recogido',
-  IN_TRANSIT: 'En camino',
-  DELIVERED: 'Entregado',
-  FAILED: 'Fallido',
-  CANCELLED: 'Cancelado',
-  NO_DRIVER: 'Sin conductor'
-}
-
 export default function ClientView({ token }) {
   const [shipments, setShipments] = useState([])
   const [selectedId, setSelectedId] = useState(null)
@@ -41,6 +32,10 @@ export default function ClientView({ token }) {
   const [distance, setDistance] = useState(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
+  const [tab, setTab] = useState('track')
+  const [dispatchState, setDispatchState] = useState(null)
+  const [tracking, setTracking] = useState(null)
+  const [notifications, setNotifications] = useState([])
   const socketRef = useRef(null)
 
   const loadList = useCallback(
@@ -69,13 +64,26 @@ export default function ClientView({ token }) {
         if (cancelled) return
         setShipment(current)
         try {
-          const tracking = await api.trackingState(token, selectedId)
+          const state = await api.trackingState(token, selectedId)
           if (!cancelled) {
-            setEta(tracking.etaSeconds ?? null)
-            setDistance(tracking.distanceToDropoffMeters ?? null)
+            setTracking(state)
+            setEta(state.etaSeconds ?? null)
+            setDistance(state.distanceToDropoffMeters ?? null)
           }
         } catch {
           /* aun sin conductor */
+        }
+        try {
+          const dispatch = await api.dispatchState(token, selectedId)
+          if (!cancelled) setDispatchState(dispatch)
+        } catch {
+          /* sin despacho todavia */
+        }
+        try {
+          const list = await api.notifications(token, selectedId)
+          if (!cancelled) setNotifications(list ?? [])
+        } catch {
+          /* sin notificaciones */
         }
       } catch {
         /* reintenta */
@@ -136,6 +144,29 @@ export default function ClientView({ token }) {
   return (
     <>
       <aside className="sidebar">
+        <div className="tabs">
+          <button className={tab === 'track' ? 'tab active' : 'tab'} onClick={() => setTab('track')}>
+            Seguimiento
+          </button>
+          <button
+            className={tab === 'services' ? 'tab active' : 'tab'}
+            onClick={() => setTab('services')}
+          >
+            Los 7 servicios
+          </button>
+        </div>
+
+        {tab === 'services' ? (
+          <section className="panel">
+            <ServicesPanel
+              shipment={shipment}
+              dispatch={dispatchState}
+              tracking={tracking}
+              notifications={notifications}
+            />
+          </section>
+        ) : (
+          <>
         <section className="panel">
           <h2>Nuevo envío</h2>
           {PRESETS.map((preset) => (
@@ -194,6 +225,8 @@ export default function ClientView({ token }) {
               ))}
             </ol>
           </section>
+        )}
+          </>
         )}
       </aside>
 
