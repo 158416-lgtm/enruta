@@ -271,7 +271,7 @@ class Cover(Flowable):
 
         c.setFillColor(colors.HexColor("#94a3b8"))
         c.setFont("DejaVu", 10.5)
-        c.drawString(46, h - 175, "7 servicios · 4 bases de datos · 5 tópicos de Kafka · 125 tests")
+        c.drawString(46, h - 175, "7 servicios · 4 bases de datos · 5 tópicos de Kafka · 166 tests")
         c.drawString(46, h - 193, "Cada pieza con su porqué, y los fragmentos que importan.")
 
         c.setFillColor(colors.HexColor("#475569"))
@@ -355,7 +355,7 @@ def build():
                 ["Almacenes en memoria", "1", "Redis: posiciones, índice geográfico, caché y contadores"],
                 ["Tópicos de Kafka", "5 + 4", "5 de negocio y 4 de mensajes fallidos (DLQ)"],
                 ["Endpoints REST", "22", "más 1 WebSocket y 2 de Actuator por servicio"],
-                ["Tests", "125", "unitarios con Mockito e integración con Testcontainers"],
+                ["Tests", "166", "unitarios con Mockito e integración con Testcontainers (71,9 % de líneas)"],
                 ["Decisiones documentadas", "13", "ADRs en docs/adr"],
             ],
             [120, 60, WIDTH - 180],
@@ -865,23 +865,24 @@ public void afterConnectionEstablished(WebSocketSession session) {
     story += [
         section(12, "Los tests: qué prueba cada cosa", PINK),
         p(
-            "Hay <b>125 tests</b>. Los unitarios usan <b>Mockito</b> (rápidos, sin infraestructura); los "
-            "de integración usan <b>Testcontainers</b> (PostgreSQL, Redis y MailHog reales)."
+            "Hay <b>166 tests</b> con <b>71,9 % de cobertura de líneas</b>. Los unitarios usan "
+            "<b>Mockito</b> (rápidos, sin infraestructura); los de integración usan <b>Testcontainers</b> "
+            "(PostgreSQL, Redis y MailHog reales)."
         ),
         Spacer(1, 4),
         table(
             [
                 ["Módulo", "Tests", "Qué cubre"],
+                ["tracking-service", "36", "geocerca, WebSocket, read-model y pipeline de GPS"],
                 ["shipment-service", "33", "máquina de estados, idempotencia, eventos de dispatch/tracking"],
-                ["dispatch-service", "17", "ofertas simultáneas, triple candado (50 hilos), liberación"],
+                ["dispatch-service", "23", "ofertas simultáneas, triple candado (50 hilos), liberación"],
+                ["auth-service", "20", "registro, login, rotación de refresh, JWKS, seeder"],
                 ["notification-service", "16", "plantillas, reintentos, DLQ, entrega real en MailHog"],
-                ["auth-service", "16", "registro, login, rotación de refresh, JWKS"],
                 ["common", "16", "outbox, deduplicación, errores RFC 9457, geodesia"],
                 ["routing-eta-service", "11", "caché, fallback y cortocircuito con OSRM falso"],
-                ["tracking-service", "8", "histéresis de geocerca con Redis real"],
                 ["contracts", "4", "envoltorio de eventos y nombres de tópicos"],
+                ["driver-simulator", "4", "rutas, tick y aceptación"],
                 ["api-gateway", "3", "cabecera X-Request-Id"],
-                ["driver-simulator", "1", "arranque del contexto"],
             ],
             [150, 45, WIDTH - 195],
             color=PINK,
@@ -907,7 +908,8 @@ public void afterConnectionEstablished(WebSocketSession session) {
         callout(
             "Cómo correrlos",
             "<font name='Mono' size='8'>mvn verify</font> ejecuta formato, unitarios, integración y "
-            "cobertura. Los de integración necesitan Docker encendido.",
+            "cobertura. Después, <font name='Mono' size='8'>./scripts/coverage.sh 70</font> falla si la "
+            "cobertura baja del 70 %. Los de integración necesitan Docker encendido.",
             PINK,
             PINK_T,
         ),

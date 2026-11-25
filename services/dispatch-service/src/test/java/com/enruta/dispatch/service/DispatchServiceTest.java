@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -150,5 +151,140 @@ class DispatchServiceTest {
                 .updateStatusForShipment(shipmentId, OfferStatus.CREATED, OfferStatus.SUPERSEDED);
         assertThat(state.getPhase()).isEqualTo(DispatchState.Phase.ASSIGNED);
         assertThat(driver.getStatus()).isEqualTo(DriverStatus.BUSY);
+    }
+
+    @Test
+    void rejectingTheLastOfferStartsANewRound() {
+        UUID shipmentId = UUID.randomUUID();
+        UUID driverId = UUID.randomUUID();
+        Offer offer =
+                new Offer(shipmentId, driverId, (short) 1, 30, 0.9, Instant.now().plusSeconds(60));
+        DispatchState state = new DispatchState(shipmentId, 4.3449, -74.3674);
+
+        when(offers.findById(offer.getId())).thenReturn(Optional.of(offer));
+        when(offers.countByShipmentIdAndStatus(shipmentId, OfferStatus.CREATED)).thenReturn(0L);
+        when(states.findById(shipmentId)).thenReturn(Optional.of(state));
+        when(offers.findDriverIdsByShipmentId(shipmentId)).thenReturn(List.of(driverId));
+        when(offers.countByShipmentAndRound(shipmentId, (short) 1)).thenReturn(1L);
+        when(offers.countByShipmentAndRound(shipmentId, (short) 2)).thenReturn(0L);
+        when(offers.countByShipmentAndRound(shipmentId, (short) 3)).thenReturn(0L);
+        when(finder.nearest(anyDouble(), anyDouble(), anyInt(), anyInt())).thenReturn(List.of());
+
+        service.reject(offer.getId(), driverId, List.of("DRIVER"));
+
+        assertThat(offer.getStatus()).isEqualTo(OfferStatus.REJECTED);
+        assertThat(state.getPhase()).isEqualTo(DispatchState.Phase.EXHAUSTED);
+        verify(outbox, org.mockito.Mockito.atLeastOnce()).append(any(), anyString());
+    }
+
+    @Test
+    void rejectingOneOfferKeepsTheOthersAlive() {
+        UUID shipmentId = UUID.randomUUID();
+        UUID driverId = UUID.randomUUID();
+        Offer offer =
+                new Offer(shipmentId, driverId, (short) 1, 30, 0.9, Instant.now().plusSeconds(60));
+
+        when(offers.findById(offer.getId())).thenReturn(Optional.of(offer));
+        when(offers.countByShipmentIdAndStatus(shipmentId, OfferStatus.CREATED)).thenReturn(2L);
+
+        service.reject(offer.getId(), driverId, List.of("DRIVER"));
+
+        assertThat(offer.getStatus()).isEqualTo(OfferStatus.REJECTED);
+        verify(offers, times(0))
+                .countByShipmentAndRound(any(), org.mockito.ArgumentMatchers.anyShort());
+    }
+
+    @Test
+    void expiringTheLastOfferAdvancesTheShipment() {
+        UUID shipmentId = UUID.randomUUID();
+        Offer expired =
+                new Offer(
+                        shipmentId,
+                        UUID.randomUUID(),
+                        (short) 1,
+                        30,
+                        0.9,
+                        Instant.now().minusSeconds(5));
+        DispatchState state = new DispatchState(shipmentId, 4.3449, -74.3674);
+
+        when(offers.findByStatusAndExpiresAtBefore(eq(OfferStatus.CREATED), any(Instant.class)))
+                .thenReturn(List.of(expired));
+        when(states.findById(shipmentId)).thenReturn(Optional.of(state));
+        when(offers.countByShipmentIdAndStatus(shipmentId, OfferStatus.CREATED)).thenReturn(0L);
+        when(offers.findDriverIdsByShipmentId(shipmentId))
+                .thenReturn(List.of(expired.getDriverId()));
+        when(offers.countByShipmentAndRound(any(), org.mockito.ArgumentMatchers.anyShort()))
+                .thenReturn(3L);
+
+        int processed = service.expireDueOffers();
+
+        assertThat(processed).isEqualTo(1);
+        assertThat(expired.getStatus()).isEqualTo(OfferStatus.EXPIRED);
+        assertThat(state.getPhase()).isEqualTo(DispatchState.Phase.EXHAUSTED);
+    }
+
+    @Test
+    void cancellingAnAssignmentFreesTheDriver() {
+        UUID shipmentId = UUID.randomUUID();
+        UUID driverId = UUID.randomUUID();
+        Assignment assignment = new Assignment(shipmentId, driverId);
+        Driver driver = new Driver(driverId, "Ana", "MOTO", 4.9, 4.3449, -74.3674);
+        driver.markBusy();
+        DispatchState state = new DispatchState(shipmentId, 4.3449, -74.3674);
+
+        when(assignments.findById(assignment.getId())).thenReturn(Optional.of(assignment));
+        when(drivers.findById(driverId)).thenReturn(Optional.of(driver));
+        when(states.findById(shipmentId)).thenReturn(Optional.of(state));
+
+        service.cancelAssignment(assignment.getId(), driverId, List.of("DRIVER"));
+
+        assertThat(assignment.getStatus()).isEqualTo(Assignment.Status.CANCELLED);
+        assertThat(driver.getStatus()).isEqualTo(DriverStatus.AVAILABLE);
+        assertThat(state.getPhase()).isEqualTo(DispatchState.Phase.CANCELLED);
+        verify(finder).index(driverId, 4.3449, -74.3674);
+        verify(outbox).append(any(), anyString());
+    }
+
+    @Test
+    void restartResumesTheSearch() {
+        UUID shipmentId = UUID.randomUUID();
+        DispatchState state = new DispatchState(shipmentId, 4.3449, -74.3674);
+        state.markCancelled();
+
+        when(states.findById(shipmentId)).thenReturn(Optional.of(state));
+        when(offers.findDriverIdsByShipmentId(shipmentId)).thenReturn(List.of());
+        when(offers.countByShipmentAndRound(any(), org.mockito.ArgumentMatchers.anyShort()))
+                .thenReturn(0L);
+        when(finder.nearest(anyDouble(), anyDouble(), anyInt(), anyInt())).thenReturn(List.of());
+
+        service.restart(shipmentId);
+
+        verify(finder, org.mockito.Mockito.atLeastOnce())
+                .nearest(anyDouble(), anyDouble(), anyInt(), anyInt());
+    }
+
+    @Test
+    void cancellingAShipmentSupersedesItsOffers() {
+        UUID shipmentId = UUID.randomUUID();
+        Offer pending =
+                new Offer(
+                        shipmentId,
+                        UUID.randomUUID(),
+                        (short) 1,
+                        30,
+                        0.9,
+                        Instant.now().plusSeconds(60));
+        DispatchState state = new DispatchState(shipmentId, 4.3449, -74.3674);
+
+        when(states.findById(shipmentId)).thenReturn(Optional.of(state));
+        when(offers.findByShipmentIdAndStatus(shipmentId, OfferStatus.CREATED))
+                .thenReturn(List.of(pending));
+        when(assignments.findFirstByShipmentIdAndStatus(shipmentId, Assignment.Status.ACTIVE))
+                .thenReturn(Optional.empty());
+
+        service.cancelShipment(shipmentId);
+
+        assertThat(pending.getStatus()).isEqualTo(OfferStatus.SUPERSEDED);
+        assertThat(state.getPhase()).isEqualTo(DispatchState.Phase.COMPLETED);
     }
 }

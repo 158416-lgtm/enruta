@@ -67,6 +67,7 @@ mvn -pl services/shipment-service -am spring-boot:run
 ```bash
 mvn -T 1C verify        # compila, tests, jacoco y spotless
 mvn spotless:apply      # formatea
+./scripts/coverage.sh   # exige >= 70% de líneas (lo mismo que hace el CI)
 ```
 
 ## Puertos
@@ -194,7 +195,7 @@ Comprobado en esta máquina, no solo compilado:
 
 | Elemento | Resultado |
 |---|---|
-| Build | `mvn verify` verde, 12 módulos, 125 tests (unitarios con Mockito e IT con Testcontainers) |
+| Build | `mvn verify` verde, 12 módulos, **166 tests** y **71,9 % de cobertura de líneas** |
 | Kafka | healthy; 9 tópicos creados (`tracking.gps.raw` con 6 particiones, retención 1 h) |
 | PostgreSQL | healthy; 4 bases (`authdb`, `shipmentdb`, `dispatchdb`, `notifdb`) |
 | Redis / MailHog | healthy |

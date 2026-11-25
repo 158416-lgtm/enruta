@@ -34,6 +34,9 @@ jobs:
       - name: Compilar y testear
         run: mvn -B -T 1C verify
 
+      - name: Umbral de cobertura (70% de lineas)
+        run: ./scripts/coverage.sh 70
+
       - name: Publicar reportes de test
         if: always()
         uses: actions/upload-artifact@v4
