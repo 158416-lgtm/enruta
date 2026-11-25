@@ -12,4 +12,17 @@
   <artifactId>contracts</artifactId>
   <name>EnRuta :: Contracts</name>
   <description>Envoltorio de eventos y esquemas JSON compartidos. Sin dependencias de framework.</description>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.assertj</groupId>
+      <artifactId>assertj-core</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
 </project>
