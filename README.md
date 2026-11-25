@@ -224,7 +224,7 @@ Comprobado en esta máquina, no solo compilado:
 
 | Elemento | Resultado |
 |---|---|
-| Build | `mvn verify` verde, 12 módulos, **367 tests** y **97,7 % de cobertura de líneas** (9 módulos medidos; excluye arranque/configuración/DTOs/seeders y el simulador de demo) |
+| Build | `mvn verify` verde, 12 módulos, **367 tests** y **97,7 % de cobertura de líneas** sobre lógica de negocio (**96,8 %** si se incluyen DTOs y configuración). Excluye el simulador de demo |
 | Kafka | healthy; 9 tópicos creados (`tracking.gps.raw` con 6 particiones, retención 1 h) |
 | PostgreSQL | healthy; 4 bases (`authdb`, `shipmentdb`, `dispatchdb`, `notifdb`) |
 | Redis / MailHog | healthy |
