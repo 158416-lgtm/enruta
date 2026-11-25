@@ -1,0 +1,1091 @@
+% ============================================================================
+%  EnRuta - Documento tecnico del proyecto
+%  Compilar con:  pdflatex enruta.tex && pdflatex enruta.tex
+% ============================================================================
+\documentclass[10pt,letterpaper,twocolumn,oneside]{report}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[spanish,es-tabla]{babel}
+\usepackage{mathptmx}
+\usepackage{microtype}
+\usepackage[letterpaper,left=4cm,right=2cm,top=3cm,bottom=3cm,headheight=15pt]{geometry}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{array}
+\usepackage{longtable}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{enumitem}
+\usepackage{caption}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta,shapes.geometric,fit,backgrounds}
+\usepackage[most]{tcolorbox}
+\usepackage[hidelinks]{hyperref}
+\usepackage{pdflscape}
+
+% ---------------------------------------------------------------- colores
+\definecolor{ink}{HTML}{1E293B}
+\definecolor{soft}{HTML}{475569}
+\definecolor{accent}{HTML}{0891B2}
+\definecolor{accent2}{HTML}{7C3AED}
+\definecolor{ok}{HTML}{16A34A}
+\definecolor{warn}{HTML}{EA580C}
+\definecolor{bad}{HTML}{DC2626}
+\definecolor{paper}{HTML}{F8FAFC}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=accent2,
+  urlcolor=accent,
+  citecolor=accent,
+  pdftitle={EnRuta - Documento tecnico},
+  pdfauthor={Proyecto EnRuta}
+}
+
+% ---------------------------------------------------------------- estilos
+\titleformat{\chapter}[display]
+  {\normalfont\huge\bfseries\color{ink}}
+  {\filleft\Large\color{accent}\chaptername\ \thechapter}
+  {1ex}
+  {\titlerule\vspace{1ex}\filleft}
+\titlespacing*{\chapter}{0pt}{-10pt}{30pt}
+
+\titleformat{\section}
+  {\normalfont\Large\bfseries\color{ink}}{\thesection}{0.8em}{}
+\titleformat{\subsection}
+  {\normalfont\large\bfseries\color{soft}}{\thesubsection}{0.8em}{}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\color{soft}EnRuta · documento técnico}
+\fancyhead[R]{\small\color{soft}\leftmark}
+\fancyfoot[C]{\small\color{soft}\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+\setlength{\parskip}{0.5em}
+\setlength{\parindent}{0pt}
+
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\newcolumntype{C}[1]{>{\centering\arraybackslash}p{#1}}
+
+\newcommand{\col}[1]{\texttt{\detokenize{#1}}}
+\newcommand{\clave}[1]{\textbf{\color{accent2}#1}}
+\newcommand{\pkg}[1]{\texttt{#1}}
+\newcommand{\attr}[1]{{\scriptsize\color{soft}#1}}
+
+\newtcolorbox{nota}[1][]{
+  colback=paper, colframe=accent, boxrule=0.6pt, arc=2pt,
+  left=8pt, right=8pt, top=6pt, bottom=6pt,
+  fonttitle=\bfseries\small, title={#1}
+}
+
+\newtcolorbox{alerta}[1][]{
+  colback=red!4, colframe=bad, boxrule=0.6pt, arc=2pt,
+  left=8pt, right=8pt, top=6pt, bottom=6pt,
+  fonttitle=\bfseries\small, title={#1}
+}
+
+% ---------------------------------------------------------------- portada
+\begin{document}
+\onecolumn
+
+\begin{titlepage}
+\centering
+\vspace*{1.5cm}
+{\color{accent}\rule{\linewidth}{2pt}}\\[0.6cm]
+{\Huge\bfseries\color{ink} EnRuta}\\[0.3cm]
+{\Large\color{soft} Plataforma de logística de última milla\\[0.2cm]
+basada en microservicios}\\[0.6cm]
+{\color{accent}\rule{\linewidth}{2pt}}\\[2cm]
+
+{\large\bfseries Documento técnico del proyecto}\\[0.3cm]
+{\large Arquitectura · Modelo entidad-relación · Diccionario de datos · APIs}\\[2.5cm]
+
+\begin{tikzpicture}[scale=1]
+  \node[draw=accent, fill=accent!5, rounded corners, minimum width=3.4cm,
+        minimum height=1cm, align=center, font=\small] (cliente) at (0,0) {Cliente\\ \scriptsize web / móvil};
+  \node[draw=accent2, fill=accent2!5, rounded corners, minimum width=3.4cm,
+        minimum height=1cm, align=center, font=\small] (gw) at (5,0) {api-gateway\\ \scriptsize :18080};
+  \node[draw=ok, fill=ok!5, rounded corners, minimum width=3.4cm,
+        minimum height=1cm, align=center, font=\small] (ship) at (10,0.8) {shipment};
+  \node[draw=warn, fill=warn!5, rounded corners, minimum width=3.4cm,
+        minimum height=1cm, align=center, font=\small] (disp) at (10,-0.8) {dispatch};
+  \draw[-{Latex}] (cliente) -- (gw);
+  \draw[-{Latex}] (gw) -- (ship);
+  \draw[-{Latex}] (gw) -- (disp);
+\end{tikzpicture}
+
+\vfill
+{\large Kevin}\\[0.2cm]
+{\color{soft} Proyecto universitario · Fusagasugá, Cundinamarca}\\[0.2cm]
+{\color{soft} \today}
+\end{titlepage}
+
+\tableofcontents
+\clearpage
+\twocolumn
+
+% ============================================================================
+\chapter{Introducción}
+% ============================================================================
+
+\section{Contexto}
+
+La \textbf{última milla} es el tramo final de una entrega: desde que el paquete sale de un punto
+de recogida hasta que llega a manos del cliente. Aunque parece un problema simple, concentra las
+mayores dificultades de una operación logística: asignar el repartidor adecuado, seguirlo en
+tiempo real, avisar al cliente y no perder ningún evento cuando algo falla.
+
+\textbf{EnRuta} es una plataforma que resuelve ese problema para una ciudad intermedia
+(Fusagasugá, Cundinamarca) y que se ejecuta íntegramente en un computador portátil. Un cliente
+pide un envío desde el navegador; un repartidor lo acepta desde su teléfono; el sistema lo asigna,
+lo rastrea con GPS real y envía un correo al entregarlo.
+
+\section{Problema}
+
+Construir el flujo completo exige resolver cuatro problemas que un CRUD no resuelve:
+
+\begin{enumerate}[leftmargin=1.2cm]
+  \item \textbf{Asignar sin duplicar.} Dos repartidores pueden aceptar la misma oferta en el
+        mismo milisegundo; el pedido no puede quedar asignado a dos personas.
+  \item \textbf{No perder eventos.} El cambio de estado y el aviso a los demás servicios deben
+        ocurrir juntos: no puede existir un envío sin evento ni un evento sin envío.
+  \item \textbf{Seguir en vivo.} Las posiciones GPS llegan cientos de veces por minuto; el mapa
+        debe actualizarse sin recargar y sin bloquear al cliente.
+  \item \textbf{Sobrevivir a los fallos.} El correo puede caer, el motor de rutas puede no
+        responder y un repartidor puede abandonar el pedido a mitad de camino.
+\end{enumerate}
+
+\section{Solución propuesta}
+
+Una arquitectura de \textbf{siete microservicios} donde cada uno posee su propio dato y se
+comunica con los demás mediante eventos (Kafka) o llamadas HTTP puntuales. La tabla
+\ref{tab:servicios} resume los servicios y la figura \ref{fig:arquitectura} su disposición.
+
+\begin{table*}[t]
+\centering
+\caption{Servicios del sistema}
+\label{tab:servicios}
+\small
+\begin{tabular}{@{}L{2.6cm}L{1.2cm}L{5.6cm}L{4.2cm}@{}}
+\toprule
+\textbf{Servicio} & \textbf{Puerto} & \textbf{Responsabilidad} & \textbf{Dato que posee}\\
+\midrule
+\pkg{api-gateway} & 18080 & valida JWT, enruta y limita peticiones & —\\
+\pkg{auth-service} & 8081 & usuarios, login, refresh y JWKS & \pkg{authdb}\\
+\pkg{shipment-service} & 8082 & ciclo de vida del envío e historial & \pkg{shipmentdb}\\
+\pkg{dispatch-service} & 8083 & ofertas y asignación de repartidores & \pkg{dispatchdb} + Redis\\
+\pkg{tracking-service} & 8084 & GPS, geocercas y WebSocket & Redis (sin BD)\\
+\pkg{routing-eta-service} & 8085 & rutas y ETA con OSRM & caché en Redis\\
+\pkg{notification-service} & 8086 & correos con reintentos y DLQ & \pkg{notifdb}\\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\begin{figure*}[t]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[
+  node distance=0.9cm and 1.1cm,
+  box/.style={draw, rounded corners, minimum width=2.6cm, minimum height=0.9cm,
+              align=center, font=\small, fill=white},
+  infra/.style={draw, rounded corners, minimum width=2.4cm, minimum height=0.7cm,
+                align=center, font=\scriptsize, fill=paper},
+  arrow/.style={-{Latex}, thick, color=soft}
+]
+  \node[box, fill=accent!8, draw=accent] (web) {Cliente\\ \scriptsize web / PWA};
+  \node[box, fill=accent2!8, draw=accent2, right=of web] (gw) {api-gateway};
+  \node[box, fill=ok!8, draw=ok, right=of gw] (ship) {shipment};
+  \node[box, fill=warn!8, draw=warn, below=of ship] (disp) {dispatch};
+  \node[box, fill=accent!8, draw=accent, below=of disp] (track) {tracking};
+  \node[box, fill=bad!8, draw=bad, below=of track] (notif) {notification};
+  \node[box, fill=ok!8, draw=ok, above=of ship] (auth) {auth};
+  \node[box, fill=accent2!8, draw=accent2, above=of auth] (routing) {routing-eta};
+
+  \draw[arrow] (web) -- (gw);
+  \draw[arrow] (gw.east) -- ++(0.4,0) |- (ship.west);
+  \draw[arrow] (gw.east) -- ++(0.4,0) |- (disp.west);
+  \draw[arrow] (gw.east) -- ++(0.4,0) |- (track.west);
+  \draw[arrow] (gw.east) -- ++(0.4,0) |- (notif.west);
+  \draw[arrow] (gw.east) -- ++(0.4,0) |- (auth.west);
+  \draw[arrow] (gw.east) -- ++(0.4,0) |- (routing.west);
+
+  \node[infra, below=1.4cm of notif, xshift=-3cm] (kafka) {Kafka};
+  \node[infra, right=0.4cm of kafka] (pg) {PostgreSQL};
+  \node[infra, right=0.4cm of pg] (redis) {Redis};
+  \node[infra, right=0.4cm of redis] (osrm) {OSRM};
+  \node[infra, right=0.4cm of osrm] (mail) {MailHog};
+  \node[draw=soft, dashed, rounded corners, fit=(kafka)(pg)(redis)(osrm)(mail), inner sep=6pt] {};
+\end{tikzpicture}
+}
+\caption{Arquitectura de contenedores. Todos los servicios comparten infraestructura, pero cada
+uno tiene su propio esquema de datos.}
+\label{fig:arquitectura}
+\end{figure*}
+
+\section{Alcance}
+
+El sistema cubre el ciclo completo: creación del envío, asignación, recogida, tránsito, entrega y
+notificación. Quedan fuera del alcance: pagos reales, multi-empresa, aplicación móvil nativa y
+facturación fiscal. El capítulo \ref{ch:futuro} detalla las líneas de trabajo futuras.
+
+% ============================================================================
+\chapter{Objetivos}
+% ============================================================================
+
+\section{Objetivo general}
+
+Diseñar e implementar una plataforma de logística de última milla basada en microservicios, con
+asignación de repartidores consistente, rastreo GPS en tiempo real y notificaciones confiables.
+
+\section{Objetivos específicos}
+
+\begin{enumerate}[leftmargin=1.2cm]
+  \item Modelar el dominio y las bases de datos con independencia por servicio.
+  \item Garantizar la consistencia del estado mediante el patrón \emph{outbox} y una saga
+        coreografiada.
+  \item Evitar la doble asignación con tres mecanismos independientes.
+  \item Implementar un pipeline de ingesta GPS con geocercas e histéresis y un canal WebSocket.
+  \item Proveer idempotencia en las escrituras y deduplicación en los consumidores.
+  \item Alcanzar una cobertura de pruebas de al menos el 70\,\% de las líneas.
+  \item Documentar las decisiones de arquitectura y operar el sistema con un solo comando.
+\end{enumerate}
+
+% ============================================================================
+\chapter{Marco teórico}
+% ============================================================================
+
+\section{Microservicios}
+
+Un microservicio es un programa pequeño con una única responsabilidad, desplegable de forma
+independiente y dueño exclusivo de sus datos. La comunicación entre servicios puede ser
+\textbf{síncrona} (HTTP, cuando se necesita una respuesta) o \textbf{asíncrona} (eventos, cuando
+solo se anuncia un hecho).
+
+\section{Arquitectura orientada a eventos}
+
+Los servicios publican \emph{hechos} (por ejemplo \pkg{shipment.created}) en un registro
+distribuido. Kafka conserva los mensajes en orden por partición y permite que varios consumidores
+lean el mismo flujo sin borrarlo. La clave de partición es el identificador del agregado, lo que
+garantiza el orden por envío o por conductor.
+
+\section{Patrón Outbox}
+
+Escribir en la base y publicar en Kafka son dos operaciones distintas que no comparten
+transacción. El patrón \emph{outbox} resuelve el problema escribiendo el evento en una tabla de
+la misma base y en la misma transacción que el cambio de negocio; un proceso posterior lo publica
+y solo entonces lo marca como enviado.
+
+\section{Saga coreografiada}
+
+Una operación que abarca varios servicios se modela como una saga: cada servicio reacciona a los
+eventos de los demás y, si un paso falla, se ejecuta una \emph{compensación} (por ejemplo,
+devolver el envío a \texttt{CREATED} cuando el repartidor abandona).
+
+\section{Idempotencia}
+
+Una operación es idempotente si ejecutarla dos veces produce el mismo efecto que ejecutarla una.
+Se implementa con una clave enviada por el cliente (\pkg{Idempotency-Key}) y una reclamación
+atómica en la base de datos.
+
+\section{Geocercas e histéresis}
+
+Una geocerca es un círculo en el mapa. Para evitar falsos positivos por el ruido del GPS
+($\pm 30$\,m en entorno urbano) se exige que el conductor permanezca dentro del radio durante
+varias lecturas consecutivas (histéresis).
+
+\section{Autenticación con JWT y JWKS}
+
+El servicio de autenticación firma tokens con RSA (RS256) y publica la llave pública en un
+endpoint JWKS. El resto de servicios validan la firma localmente, sin compartir secretos y sin
+consultar al emisor en cada petición.
+
+% ============================================================================
+\chapter{Arquitectura del sistema}
+% ============================================================================
+
+\section{Estilo arquitectónico}
+
+La arquitectura es de \textbf{microservicios con base de datos por servicio} y comunicación mixta:
+HTTP para consultas que requieren respuesta inmediata (por ejemplo, el cálculo de ETA) y Kafka
+para la propagación de hechos de negocio.
+
+\begin{nota}[Regla de oro]
+Ningún servicio lee ni escribe la base de otro. Si necesita un dato, lo pide por HTTP o se
+suscribe al evento que lo anuncia. Esta regla es la que permite cambiar un servicio sin tocar los
+demás.
+\end{nota}
+
+\section{Infraestructura}
+
+\begin{table*}[t]
+\centering
+\caption{Componentes de infraestructura}
+\small
+\begin{tabular}{@{}L{3.2cm}L{8.2cm}L{3cm}@{}}
+\toprule
+\textbf{Componente} & \textbf{Uso} & \textbf{Puerto host}\\
+\midrule
+Kafka (KRaft) & 5 tópicos de negocio + 4 DLQ, 3 particiones por tópico & 29092\\
+PostgreSQL 16 & 4 bases independientes, una por servicio & 5433\\
+Redis 7 & índice geográfico, última posición, read-model y caché & 6379\\
+OSRM & rutas por calles con extract de Fusagasugá & 5000\\
+MailHog & servidor SMTP de desarrollo & 8025\\
+Prometheus & recolección de métricas de los 7 servicios & 9090\\
+Grafana & tablero provisionado & 3000\\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\section{Flujo de una petición}
+
+\begin{enumerate}[leftmargin=1.2cm]
+  \item El cliente envía \pkg{POST /api/v1/shipments} con su JWT y una \pkg{Idempotency-Key}.
+  \item El gateway valida la firma del token y reenvía la petición a \pkg{shipment-service}.
+  \item \pkg{shipment-service} guarda el envío, su historial y el evento en el outbox, todo en
+        una transacción.
+  \item El relay publica \pkg{shipment.created} en Kafka.
+  \item \pkg{dispatch-service} consume el evento, busca candidatos en Redis y emite ofertas.
+  \item El repartidor acepta; se crea la asignación y se publica \pkg{dispatch.assigned}.
+  \item \pkg{shipment-service} cambia el estado a \texttt{ASSIGNED}.
+\end{enumerate}
+
+% ============================================================================
+\onecolumn
+\chapter{Modelo de datos}
+\label{ch:datos}
+% ============================================================================
+
+\section{Metodología}
+
+El modelo se construyó en tres niveles: \textbf{conceptual} (entidades y relaciones),
+\textbf{lógico} (tablas, claves y tipos) y \textbf{físico} (índices, restricciones y
+migraciones Flyway). Cada servicio posee su propia base de datos; las tablas transversales
+(\pkg{outbox}, \pkg{processed\_events}, \pkg{idempotency\_keys}, \pkg{shedlock}) se replican
+solo en los servicios que las necesitan.
+
+\section{Modelo entidad-relación (MER)}
+
+La figura \ref{fig:mer} presenta el modelo conceptual. Se muestran las entidades principales con
+sus atributos identificadores y las relaciones con sus cardinalidades.
+
+\begin{figure*}[p]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[
+  entity/.style={draw=ink, rounded corners=3pt, fill=paper, minimum width=3.9cm,
+                 minimum height=1.1cm, align=center, font=\small, inner sep=4pt},
+  attr/.style={font=\scriptsize\color{soft}},
+  rel/.style={-{Latex}, thick, color=soft},
+  card/.style={font=\scriptsize\bfseries, fill=white, inner sep=1.5pt}
+]
+  % columna izquierda / centro / derecha
+  \node[entity] (role) at (0,10.8) {\textbf{ROLE}\\[1pt] \attr{name}};
+  \node[entity] (refresh) at (6,10.8) {\textbf{REFRESH\_TOKEN}\\[1pt] \attr{id · token\_hash · expires\_at}};
+
+  \node[entity] (user) at (0,6.8) {\textbf{USER}\\[1pt] \attr{id · email · password\_hash}};
+  \node[entity] (shipment) at (6,6.8) {\textbf{SHIPMENT}\\[1pt] \attr{id · customer\_id · status}};
+  \node[entity] (driver) at (12,6.8) {\textbf{DRIVER}\\[1pt] \attr{id · status · rating}};
+
+  \node[entity] (state) at (0,3) {\textbf{DISPATCH\_STATE}\\[1pt] \attr{shipment\_id · phase · round}};
+  \node[entity] (offer) at (6,3) {\textbf{OFFER}\\[1pt] \attr{id · shipment\_id · driver\_id}};
+  \node[entity] (assign) at (12,3) {\textbf{ASSIGNMENT}\\[1pt] \attr{id · shipment\_id · driver\_id}};
+
+  \node[entity] (outbox) at (0,-0.8) {\textbf{OUTBOX}\\[1pt] \attr{id · aggregate\_id · payload}};
+  \node[entity] (notif) at (6,-0.8) {\textbf{NOTIFICATION}\\[1pt] \attr{id · shipment\_id · status}};
+  \node[entity] (idem) at (12,-0.8) {\textbf{IDEMPOTENCY\_KEY}\\[1pt] \attr{key · request\_hash}};
+
+  % relaciones
+  \draw[rel] (user) -- node[card, left]{1} node[card, right, pos=0.88]{M} (role)
+        node[midway, font=\scriptsize, fill=paper, inner sep=2pt, xshift=0.75cm]{user\_roles};
+  \draw[rel] (user) -- node[card, above left]{1} node[card, below right]{N} (refresh);
+  \draw[rel] (user) -- node[card, above left]{1} node[card, below right]{N} (shipment);
+  \draw[rel] (shipment) -- node[card, left]{1} node[card, right, pos=0.85]{N} (offer);
+  \draw[rel] (driver) -- node[card, above right]{1} node[card, below left]{N} (offer);
+  \draw[rel] (shipment) -- node[card, above right]{1} node[card, below left]{N} (assign);
+  \draw[rel] (driver) -- node[card, left]{1} node[card, right, pos=0.85]{N} (assign);
+  \draw[rel] (shipment) -- node[card, above right]{1} node[card, below left]{1} (state);
+  \draw[rel] (shipment) -- node[card, left]{1} node[card, right, pos=0.85]{N} (notif);
+\end{tikzpicture}
+}
+\caption{Modelo entidad-relación conceptual. \pkg{OUTBOX}, \pkg{PROCESSED\_EVENT} e
+\pkg{IDEMPOTENCY\_KEY} son tablas de infraestructura: no participan del dominio, pero sostienen
+la consistencia (eventos, deduplicación e idempotencia).}
+\label{fig:mer}
+\end{figure*}
+\caption{}
+\label{fig:mer}
+\end{figure*}
+
+\section{Entidades y atributos}
+
+\begin{longtable}{@{}L{4.6cm}L{2.2cm}L{7.2cm}@{}}
+\caption{Entidades del dominio y sus atributos}\label{tab:entidades}\\
+\toprule
+\textbf{Entidad} & \textbf{Clave} & \textbf{Atributos principales}\\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Entidad} & \textbf{Clave} & \textbf{Atributos principales}\\
+\midrule
+\endhead
+USER & id & email (único), password\_hash, full\_name, enabled, created\_at\\
+ROLE & name & ADMIN, CLIENT, DRIVER (catálogo)\\
+REFRESH\_TOKEN & id & user\_id, token\_hash (único), expires\_at, revoked, created\_at\\
+SHIPMENT & id & customer\_id, customer\_email, driver\_id, status, origen/destino (lat, lng,
+dirección), pickup\_pin, dispatch\_rounds, version, created\_at, updated\_at\\
+SHIPMENT\_STATUS\_HISTORY & id & shipment\_id, from\_status, to\_status, actor\_id, reason, occurred\_at\\
+DRIVER & id & full\_name, vehicle\_type, status, current\_lat/lng, rating, version, updated\_at\\
+OFFER & id & shipment\_id, driver\_id, status, expires\_at, round, distance\_meters, score, created\_at\\
+ASSIGNMENT & id & shipment\_id, driver\_id, status, created\_at, ended\_at\\
+DISPATCH\_STATE & shipment\_id & pickup\_lat/lng, phase, round, current\_offer\_id, updated\_at\\
+NOTIFICATION & id & shipment\_id, channel, recipient, template, variables, status, attempts,
+last\_error, next\_attempt\_at, created\_at, sent\_at\\
+OUTBOX & id & aggregate\_id, event\_type, topic, payload, created\_at, published\_at, attempts\\
+PROCESSED\_EVENT & event\_id + consumer & processed\_at\\
+IDEMPOTENCY\_KEY & key & request\_hash, response\_status, response\_body, created\_at, expires\_at\\
+\bottomrule
+\end{longtable}
+
+\section{Relaciones y cardinalidades}
+
+\begin{table*}[t]
+\centering
+\caption{Relaciones del modelo conceptual}
+\small
+\begin{tabular}{@{}L{4.6cm}L{1.6cm}L{6.6cm}@{}}
+\toprule
+\textbf{Relación} & \textbf{Card.} & \textbf{Regla de negocio}\\
+\midrule
+USER — REFRESH\_TOKEN & 1:N & un usuario puede tener varios refresh; cada uno se revoca al usarse\\
+USER — ROLE & N:M & tabla puente \pkg{user\_roles}\\
+USER — SHIPMENT & 1:N & un cliente crea muchos envíos\\
+SHIPMENT — OFFER & 1:N & varias ofertas por ronda (hasta 3 simultáneas)\\
+DRIVER — OFFER & 1:N & un conductor recibe ofertas de distintos envíos\\
+SHIPMENT — ASSIGNMENT & 1:0..1 & como máximo una asignación activa por envío\\
+DRIVER — ASSIGNMENT & 1:N & histórico de asignaciones del conductor\\
+SHIPMENT — DISPATCH\_STATE & 1:1 & una fila de estado por envío\\
+SHIPMENT — NOTIFICATION & 1:N & varios correos por envío (entrega, reintentos)\\
+SHIPMENT — OUTBOX & 1:N & eventos generados por el envío\\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\section{Modelo relacional: cuatro bases de datos}
+
+\begin{table*}[t]
+\centering
+\caption{Bases de datos y tablas}
+\small
+\begin{tabular}{@{}L{2.6cm}L{11.4cm}@{}}
+\toprule
+\textbf{Base} & \textbf{Tablas}\\
+\midrule
+\pkg{authdb} & users, user\_roles, refresh\_tokens\\
+\pkg{shipmentdb} & shipments, shipment\_status\_history, outbox, idempotency\_keys,
+processed\_events, shedlock\\
+\pkg{dispatchdb} & drivers, offers, assignments, dispatch\_state, outbox, processed\_events, shedlock\\
+\pkg{notifdb} & notifications, processed\_events, shedlock\\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\begin{alerta}[¿Y tracking?]
+\pkg{tracking-service} \textbf{no tiene base de datos}. Su estado (última posición, contadores de
+geocerca, read-model de envíos) vive en Redis y es reconstruible: si el servicio se reinicia, el
+siguiente ping lo corrige. Tampoco usa outbox porque no hay transacción de base que proteger.
+\end{alerta}
+
+\section{Diccionario de datos}
+
+A continuación se detalla cada tabla: columnas, tipos, nulabilidad y restricciones. Los tipos
+corresponden a PostgreSQL 16.
+
+\subsection{authdb}
+
+\begin{longtable}{@{}L{3.4cm}L{3.2cm}L{1.2cm}L{3.6cm}L{3.4cm}@{}}
+\caption{Tabla \pkg{users}}\\
+\toprule
+\textbf{Columna} & \textbf{Tipo} & \textbf{Nulo} & \textbf{Restricción} & \textbf{Descripción}\\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Columna} & \textbf{Tipo} & \textbf{Nulo} & \textbf{Restricción} & \textbf{Descripción}\\
+\midrule
+\endhead
+id & UUID & no & PK & identificador\\
+email & VARCHAR(255) & no & UNIQUE & correo normalizado a minúsculas\\
+password\_hash & VARCHAR(255) & no & & BCrypt con coste 12\\
+full\_name & VARCHAR(255) & no & & nombre visible\\
+enabled & BOOLEAN & no & default TRUE & permite deshabilitar cuentas\\
+created\_at & TIMESTAMPTZ & no & & alta del usuario\\
+\bottomrule
+\end{longtable}
+
+\begin{longtable}{@{}L{3.4cm}L{3.2cm}L{1.2cm}L{3.6cm}L{3.4cm}@{}}
+\caption{Tabla \pkg{user\_roles}}\\
+\toprule
+\textbf{Columna} & \textbf{Tipo} & \textbf{Nulo} & \textbf{Restricción} & \textbf{Descripción}\\
+\midrule
+\endhead
+user\_id & UUID & no & PK, FK users & usuario\\
+role & VARCHAR(32) & no & PK & ADMIN, CLIENT o DRIVER\\
+\bottomrule
+\end{longtable}
+
+\begin{longtable}{@{}L{3.4cm}L{3.2cm}L{1.2cm}L{3.6cm}L{3.4cm}@{}}
+\caption{Tabla \pkg{refresh\_tokens}}\\
+\toprule
+\textbf{Columna} & \textbf{Tipo} & \textbf{Nulo} & \textbf{Restricción} & \textbf{Descripción}\\
+\midrule
+\endhead
+id & UUID & no & PK & identificador\\
+user\_id & UUID & no & FK users & dueño del token\\
+token\_hash & VARCHAR(64) & no & UNIQUE & SHA-256 del token (nunca el token en claro)\\
+expires\_at & TIMESTAMPTZ & no & & caducidad (7 días)\\
+revoked & BOOLEAN & no & default FALSE & se revoca al rotar o al cerrar sesión\\
+created\_at & TIMESTAMPTZ & no & & emisión\\
+\bottomrule
+\end{longtable}
+
+\subsection{shipmentdb}
+
+\begin{longtable}{@{}L{3.2cm}L{3.2cm}L{1.1cm}L{3.4cm}L{3.9cm}@{}}
+\caption{Tabla \pkg{shipments}}\\
+\toprule
+\textbf{Columna} & \textbf{Tipo} & \textbf{Nulo} & \textbf{Restricción} & \textbf{Descripción}\\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Columna} & \textbf{Tipo} & \textbf{Nulo} & \textbf{Restricción} & \textbf{Descripción}\\
+\midrule
+\endhead
+id & UUID & no & PK & identificador del envío\\
+customer\_id & UUID & no & & usuario que lo solicita\\
+customer\_email & VARCHAR(255) & sí & & correo para la notificación\\
+driver\_id & UUID & sí & & conductor asignado\\
+status & VARCHAR(24) & no & & CREATED, ASSIGNED, PICKED\_UP, IN\_TRANSIT, DELIVERED, FAILED,
+CANCELLED, NO\_DRIVER\\
+pickup\_lat / lng & DOUBLE & no & & coordenadas de recogida\\
+dropoff\_lat / lng & DOUBLE & no & & coordenadas de entrega\\
+pickup\_address & VARCHAR(300) & no & & dirección legible\\
+dropoff\_address & VARCHAR(300) & no & & dirección legible\\
+pickup\_pin & VARCHAR(4) & no & & PIN de recogida para el cliente\\
+dispatch\_rounds & SMALLINT & no & default 0 & rondas de despacho consumidas\\
+version & BIGINT & no & default 0 & bloqueo optimista de JPA\\
+created\_at / updated\_at & TIMESTAMPTZ & no & & marcas de tiempo\\
+\bottomrule
+\end{longtable}
+
+\begin{longtable}{@{}L{3.2cm}L{3.2cm}L{1.1cm}L{3.4cm}L{3.9cm}@{}}
+\caption{Tabla \pkg{shipment\_status\_history}}\\
+\toprule
+\textbf{Columna} & \textbf{Tipo} & \textbf{Nulo} & \textbf{Restricción} & \textbf{Descripción}\\
+\midrule
+\endhead
+id & BIGSERIAL & no & PK & secuencia\\
+shipment\_id & UUID & no & FK shipments & envío\\
+from\_status & VARCHAR(24) & sí & & estado anterior (nulo al crear)\\
+to\_status & VARCHAR(24) & no & & estado nuevo\\
+actor\_id & UUID & sí & & quién provocó el cambio\\
+reason & VARCHAR(300) & sí & & texto libre\\
+occurred\_at & TIMESTAMPTZ & no & & instante del cambio\\
+\bottomrule
+\end{longtable}
+
+\begin{longtable}{@{}L{3.2cm}L{3.2cm}L{1.1cm}L{3.4cm}L{3.9cm}@{}}
+\caption{Tabla \pkg{outbox}}\\
+\toprule
+\textbf{Columna} & \textbf{Tipo} & \textbf{Nulo} & \textbf{Restricción} & \textbf{Descripción}\\
+\midrule
+\endhead
+id & UUID & no & PK & identificador del evento\\
+aggregate\_id & UUID & no & & clave de partición en Kafka\\
+event\_type & VARCHAR(64) & no & & tipo del evento\\
+topic & VARCHAR(64) & no & & tópico destino\\
+payload & JSONB & no & & envoltorio completo serializado\\
+created\_at & TIMESTAMPTZ & no & & alta\\
+published\_at & TIMESTAMPTZ & sí & & nulo hasta el ack de Kafka\\
+attempts & SMALLINT & no & default 0 & reintentos\\
+\bottomrule
+\end{longtable}
+
+\begin{longtable}{@{}L{3.2cm}L{3.2cm}L{1.1cm}L{3.4cm}L{3.9cm}@{}}
+\caption{Tabla \pkg{idempotency\_keys}}\\
+\toprule
+\textbf{Columna} & \textbf{Tipo} & \textbf{Nulo} & \textbf{Restricción} & \textbf{Descripción}\\
+\midrule
+\endhead
+key & VARCHAR(128) & no & PK & valor de \pkg{Idempotency-Key}\\
+request\_hash & VARCHAR(64) & no & & SHA-256 del cuerpo\\
+response\_status & INTEGER & sí & & 0 = en curso\\
+response\_body & JSONB & sí & & respuesta guardada para repetirla\\
+created\_at & TIMESTAMPTZ & no & & alta\\
+expires\_at & TIMESTAMPTZ & no & & 24 horas\\
+\bottomrule
+\end{longtable}
+
+\begin{longtable}{@{}L{3.2cm}L{3.2cm}L{1.1cm}L{3.4cm}L{3.9cm}@{}}
+\caption{Tabla \pkg{processed\_events} (también en dispatchdb y notifdb)}\\
+\toprule
+\textbf{Columna} & \textbf{Tipo} & \textbf{Nulo} & \textbf{Restricción} & \textbf{Descripción}\\
+\midrule
+\endhead
+event\_id & UUID & no & PK & identificador del evento consumido\\
+consumer & VARCHAR(64) & no & PK & nombre del consumidor\\
+processed\_at & TIMESTAMPTZ & no & & instante de procesamiento\\
+\bottomrule
+\end{longtable}
+
+\begin{longtable}{@{}L{3.2cm}L{3.2cm}L{1.1cm}L{3.4cm}L{3.9cm}@{}}
+\caption{Tabla \pkg{shedlock} (también en dispatchdb y notifdb)}\\
+\toprule
+\textbf{Columna} & \textbf{Tipo} & \textbf{Nulo} & \textbf{Restricción} & \textbf{Descripción}\\
+\midrule
+\endhead
+name & VARCHAR(64) & no & PK & nombre del lock\\
+lock\_until & TIMESTAMPTZ & no & & hasta cuándo está tomado\\
+locked\_at & TIMESTAMPTZ & no & & cuándo se tomó\\
+locked\_by & VARCHAR(255) & no & & instancia que lo tomó\\
+\bottomrule
+\end{longtable}
+
+\subsection{dispatchdb}
+
+\begin{longtable}{@{}L{3.2cm}L{3.2cm}L{1.1cm}L{3.4cm}L{3.9cm}@{}}
+\caption{Tabla \pkg{drivers}}\\
+\toprule
+\textbf{Columna} & \textbf{Tipo} & \textbf{Nulo} & \textbf{Restricción} & \textbf{Descripción}\\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Columna} & \textbf{Tipo} & \textbf{Nulo} & \textbf{Restricción} & \textbf{Descripción}\\
+\midrule
+\endhead
+id & UUID & no & PK & mismo id que el usuario en authdb\\
+full\_name & VARCHAR(120) & no & & nombre visible\\
+vehicle\_type & VARCHAR(16) & no & & MOTO, BICI o CARRO\\
+status & VARCHAR(16) & no & & AVAILABLE, BUSY u OFFLINE\\
+current\_lat / lng & DOUBLE & sí & & última posición conocida\\
+rating & DOUBLE & no & & calificación 0–5\\
+version & BIGINT & no & default 0 & bloqueo optimista\\
+updated\_at & TIMESTAMPTZ & no & & última actualización\\
+\bottomrule
+\end{longtable}
+
+\begin{longtable}{@{}L{3.2cm}L{3.2cm}L{1.1cm}L{3.4cm}L{3.9cm}@{}}
+\caption{Tabla \pkg{offers}}\\
+\toprule
+\textbf{Columna} & \textbf{Tipo} & \textbf{Nulo} & \textbf{Restricción} & \textbf{Descripción}\\
+\midrule
+\endhead
+id & UUID & no & PK & identificador\\
+shipment\_id & UUID & no & & envío ofertado\\
+driver\_id & UUID & no & FK drivers & conductor candidato\\
+status & VARCHAR(16) & no & & CREATED, ACCEPTED, REJECTED, EXPIRED, SUPERSEDED\\
+expires\_at & TIMESTAMPTZ & no & & vencimiento (90 s)\\
+round & SMALLINT & no & & ronda 1–3\\
+distance\_meters & INTEGER & sí & & distancia al origen\\
+score & DOUBLE & no & & puntuación 70\,\% cercanía + 30\,\% rating\\
+version & BIGINT & no & default 0 & bloqueo optimista\\
+created\_at & TIMESTAMPTZ & no & & emisión\\
+\bottomrule
+\end{longtable}
+
+\begin{longtable}{@{}L{3.2cm}L{3.2cm}L{1.1cm}L{3.4cm}L{3.9cm}@{}}
+\caption{Tabla \pkg{assignments}}\\
+\toprule
+\textbf{Columna} & \textbf{Tipo} & \textbf{Nulo} & \textbf{Restricción} & \textbf{Descripción}\\
+\midrule
+\endhead
+id & UUID & no & PK & identificador\\
+shipment\_id & UUID & no & & envío\\
+driver\_id & UUID & no & FK drivers & conductor\\
+status & VARCHAR(16) & no & & ACTIVE, CANCELLED, COMPLETED\\
+created\_at & TIMESTAMPTZ & no & & inicio\\
+ended\_at & TIMESTAMPTZ & sí & & fin\\
+\bottomrule
+\end{longtable}
+
+\begin{longtable}{@{}L{3.2cm}L{3.2cm}L{1.1cm}L{3.4cm}L{3.9cm}@{}}
+\caption{Tabla \pkg{dispatch\_state}}\\
+\toprule
+\textbf{Columna} & \textbf{Tipo} & \textbf{Nulo} & \textbf{Restricción} & \textbf{Descripción}\\
+\midrule
+\endhead
+shipment\_id & UUID & no & PK & envío\\
+pickup\_lat / lng & DOUBLE & no & & origen (copiado del evento)\\
+phase & VARCHAR(16) & no & & SEARCHING, OFFERED, ASSIGNED, COMPLETED, EXHAUSTED, CANCELLED\\
+round & SMALLINT & no & default 0 & ronda actual\\
+current\_offer\_id & UUID & sí & & oferta destacada (informativo)\\
+updated\_at & TIMESTAMPTZ & no & & último cambio\\
+\bottomrule
+\end{longtable}
+
+\subsection{notifdb}
+
+\begin{longtable}{@{}L{3.2cm}L{3.2cm}L{1.1cm}L{3.4cm}L{3.9cm}@{}}
+\caption{Tabla \pkg{notifications}}\\
+\toprule
+\textbf{Columna} & \textbf{Tipo} & \textbf{Nulo} & \textbf{Restricción} & \textbf{Descripción}\\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Columna} & \textbf{Tipo} & \textbf{Nulo} & \textbf{Restricción} & \textbf{Descripción}\\
+\midrule
+\endhead
+id & UUID & no & PK & identificador\\
+shipment\_id & UUID & sí & & nulo en notificaciones de prueba\\
+channel & VARCHAR(16) & no & & EMAIL\\
+recipient & VARCHAR(255) & no & & destinatario\\
+template & VARCHAR(64) & no & & SHIPMENT\_DELIVERED, TEST\\
+variables & JSONB & no & & datos de la plantilla\\
+status & VARCHAR(16) & no & & PENDING, SENT, FAILED\\
+attempts & SMALLINT & no & default 0 & intentos realizados\\
+last\_error & VARCHAR(500) & sí & & último error\\
+next\_attempt\_at & TIMESTAMPTZ & sí & & próximo reintento\\
+created\_at & TIMESTAMPTZ & no & & alta\\
+sent\_at & TIMESTAMPTZ & sí & & envío exitoso\\
+\bottomrule
+\end{longtable}
+
+\section{Índices y restricciones}
+
+\begin{table*}[t]
+\centering
+\caption{Índices y restricciones relevantes}
+\small
+\begin{tabular}{@{}L{4.6cm}L{2.4cm}L{7.4cm}@{}}
+\toprule
+\textbf{Nombre} & \textbf{Tabla} & \textbf{Propósito}\\
+\midrule
+\pkg{uq\_offers\_pending\_driver} & offers & único parcial: una oferta pendiente por (envío, conductor)\\
+\pkg{uq\_assignments\_active} & assignments & único parcial: una sola asignación activa por envío\\
+\pkg{ix\_outbox\_pending} & outbox & parcial \pkg{WHERE published\_at IS NULL} para el relay\\
+\pkg{ix\_notifications\_due} & notifications & parcial \pkg{WHERE status = 'PENDING'}\\
+\pkg{ix\_shipments\_customer} & shipments & listado por cliente\\
+\pkg{ix\_shipments\_status} & shipments & filtros por estado\\
+\pkg{ix\_history\_shipment} & history & timeline ordenado\\
+\pkg{ix\_drivers\_status} & drivers & disponibilidad\\
+\pkg{ix\_offers\_expiry} & offers & barrido de vencidas\\
+\pkg{ix\_refresh\_tokens\_user} & refresh\_tokens & revocación por usuario\\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\section{Modelo no relacional (Redis)}
+
+\begin{table*}[t]
+\centering
+\caption{Claves de Redis}
+\small
+\begin{tabular}{@{}L{5.2cm}L{2cm}L{7.2cm}@{}}
+\toprule
+\textbf{Clave} & \textbf{Tipo} & \textbf{Contenido / TTL}\\
+\midrule
+\pkg{drivers:available} & GEO & conductores libres con posición (sin TTL)\\
+\pkg{driver:\{id\}:last} & HASH & lat, lng, at (10 min)\\
+\pkg{driver:\{id\}:shipment} & STRING & envío activo del conductor (12 h)\\
+\pkg{shipment:\{id\}} & HASH & pickup, dropoff, driverId (12 h)\\
+\pkg{geo:\{envio\}:\{cerca\}:hits} & STRING & contador de 3 pings (2 min)\\
+\pkg{geo:\{envio\}:\{cerca\}:done} & STRING & geocerca confirmada (6 h)\\
+\pkg{eta:\{lat,lng\}:\{lat,lng\}} & STRING & ruta cacheada (20 s)\\
+\pkg{rl:gps:\{id\}} & STRING & límite de 3 lotes/s (1 s)\\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+% ============================================================================
+\chapter{Interfaz de programación (API)}
+% ============================================================================
+
+Todas las rutas se publican a través del gateway en \pkg{http://localhost:18080}. Salvo las
+marcadas como públicas, requieren la cabecera \pkg{Authorization: Bearer <jwt>}.
+
+\begin{longtable}{@{}L{6.4cm}L{2.2cm}L{1.6cm}L{5.2cm}@{}}
+\caption{Endpoints REST y WebSocket}\label{tab:api}\\
+\toprule
+\textbf{Método y ruta} & \textbf{Servicio} & \textbf{Auth} & \textbf{Descripción}\\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Método y ruta} & \textbf{Servicio} & \textbf{Auth} & \textbf{Descripción}\\
+\midrule
+\endhead
+POST /api/v1/auth/register & auth & público & crea un cliente\\
+POST /api/v1/auth/login & auth & público & access + refresh token\\
+POST /api/v1/auth/refresh & auth & público & rota el refresh\\
+POST /api/v1/auth/logout & auth & público & revoca el refresh\\
+GET /api/v1/auth/jwks & auth & público & llave pública RSA\\
+GET /api/v1/auth/me & auth & jwt & perfil del token\\
+POST /api/v1/shipments & shipment & jwt & crea envío (Idempotency-Key)\\
+GET /api/v1/shipments & shipment & jwt & listado paginado\\
+GET /api/v1/shipments/\{id\} & shipment & jwt & estado e historial\\
+POST /api/v1/shipments/\{id\}/cancel & shipment & jwt & cancelación con reglas por rol\\
+POST /api/v1/drivers/\{id\}/location & dispatch & jwt & posición del conductor\\
+POST /api/v1/drivers/\{id\}/availability & dispatch & jwt & disponibilidad\\
+GET /api/v1/drivers/\{id\}/offers & dispatch & jwt & ofertas vigentes\\
+POST /api/v1/offers/\{id\}/accept & dispatch & jwt & acepta (tres candados)\\
+POST /api/v1/offers/\{id\}/reject & dispatch & jwt & rechaza y sigue\\
+POST /api/v1/assignments/\{id\}/cancel & dispatch & jwt & compensación de la saga\\
+GET /api/v1/dispatch/shipments/\{id\} & dispatch & jwt & fase, ronda y ofertas\\
+POST /api/v1/tracking/drivers/\{id\}/location & tracking & jwt & lote GPS (202)\\
+GET /api/v1/tracking/shipments/\{id\} & tracking & jwt & posición y ETA\\
+GET /api/v1/eta & routing & jwt & distancia y duración\\
+GET /api/v1/notifications & notification & jwt & correos de un envío\\
+GET /api/v1/notifications/\{id\} & notification & jwt & estado e intentos\\
+POST /api/v1/notifications/test & notification & ADMIN & correo de prueba\\
+WS /ws/tracking & tracking & jwt en query & posiciones en vivo\\
+\bottomrule
+\end{longtable}
+
+\section{Formato de errores}
+
+Todos los errores usan \pkg{application/problem+json} (RFC 9457) con un campo \pkg{code}
+estable. Ejemplos: \pkg{INVALID\_TRANSITION} (409), \pkg{OFFER\_ALREADY\_CLAIMED} (409),
+\pkg{IDEMPOTENCY\_KEY\_REUSED} (409), \pkg{VALIDATION\_ERROR} (400), \pkg{RATE\_LIMITED} (429).
+
+% ============================================================================
+\twocolumn
+\chapter{Eventos y mensajería}
+% ============================================================================
+
+\section{Tópicos}
+
+\begin{table*}[t]
+\centering
+\caption{Tópicos de Kafka}
+\small
+\begin{tabular}{@{}L{5cm}L{2.2cm}L{2.4cm}L{5.2cm}@{}}
+\toprule
+\textbf{Tópico} & \textbf{Particiones} & \textbf{Retención} & \textbf{Productor}\\
+\midrule
+\pkg{shipment.events} & 3 & 7 días & shipment\\
+\pkg{dispatch.events} & 3 & 7 días & dispatch\\
+\pkg{tracking.gps.raw} & 6 & 1 hora & tracking (ingesta)\\
+\pkg{tracking.events} & 3 & 7 días & tracking (geocercas)\\
+\pkg{notification.commands} & 3 & 7 días & shipment\\
+\pkg{*.dlq} & 1 & 14 días & consumidores\\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\section{Envoltorio de eventos}
+
+\begin{verbatim}
+{
+  "eventId": "7f1c...",           // deduplicación
+  "eventType": "shipment.assigned",
+  "eventVersion": 1,
+  "occurredAt": "2026-11-25T10:00:00Z",
+  "aggregateId": "a1b2...",       // clave de partición
+  "traceId": "4bf9...",
+  "payload": { }
+}
+\end{verbatim}
+
+\section{Garantías}
+
+\begin{itemize}[leftmargin=1.2cm]
+  \item \textbf{Orden por agregado:} la clave de partición es el id del envío o del conductor.
+  \item \textbf{Al menos una vez:} los consumidores deduplican con \pkg{processed\_events}.
+  \item \textbf{Sin pérdida en la publicación:} outbox + ack de Kafka antes de marcar enviado.
+  \item \textbf{Mensajes venenosos:} reintentos con espera y luego DLQ.
+\end{itemize}
+
+% ============================================================================
+\chapter{Seguridad}
+% ============================================================================
+
+\begin{table*}[t]
+\centering
+\caption{Matriz de permisos}
+\small
+\begin{tabular}{@{}L{5.6cm}L{2.2cm}L{2.2cm}L{2.2cm}L{2.2cm}@{}}
+\toprule
+\textbf{Operación} & \textbf{CLIENT} & \textbf{DRIVER} & \textbf{ADMIN} & \textbf{Público}\\
+\midrule
+Crear envío & sí (propio) & no & sí & no\\
+Ver envío & solo el suyo & solo asignados & todos & no\\
+Cancelar envío & hasta ASSIGNED & no & hasta IN\_TRANSIT & no\\
+Aceptar oferta & no & solo la suya & sí & no\\
+Reportar GPS & no & solo el suyo & sí & no\\
+Listar notificaciones & no & no & sí & no\\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+Los tokens son RS256, con 15 minutos de vida y refresh de 7 días almacenado como hash. El gateway
+valida la firma contra el JWKS y cada servicio vuelve a validar el rol y la propiedad del recurso:
+nunca se confía solo en el gateway.
+
+% ============================================================================
+\chapter{Pruebas y calidad}
+% ============================================================================
+
+\section{Estrategia}
+
+\begin{itemize}[leftmargin=1.2cm]
+  \item \textbf{Unitarias (Mockito):} reglas de dominio, servicios y controladores, sin
+        infraestructura.
+  \item \textbf{Integración (Testcontainers):} PostgreSQL, Redis y MailHog reales; se valida el
+        esquema Flyway y la entrega real de correo.
+  \item \textbf{Concurrencia:} 50 hilos aceptando la misma oferta.
+  \item \textbf{Contrato:} validación de los eventos publicados contra los esquemas.
+\end{itemize}
+
+\begin{table*}[t]
+\centering
+\caption{Tests y cobertura por módulo}
+\small
+\begin{tabular}{@{}L{4.6cm}C{2cm}C{2.6cm}@{}}
+\toprule
+\textbf{Módulo} & \textbf{Tests} & \textbf{Cobertura de líneas}\\
+\midrule
+tracking-service & 36 & 84,1\,\%\\
+shipment-service & 33 & 78,2\,\%\\
+dispatch-service & 23 & 73,8\,\%\\
+auth-service & 20 & 73,9\,\%\\
+notification-service & 16 & 73,0\,\%\\
+common & 16 & 68,6\,\%\\
+routing-eta-service & 11 & 92,6\,\%\\
+contracts & 4 & 100\,\%\\
+driver-simulator & 4 & 32,5\,\%\\
+api-gateway & 3 & 33,3\,\%\\
+\midrule
+\textbf{Total} & \textbf{166} & \textbf{71,9\,\%}\\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+El umbral del 70\,\% se verifica en integración continua con \pkg{./scripts/coverage.sh 70}.
+
+% ============================================================================
+\chapter{Despliegue y operación}
+% ============================================================================
+
+\section{Requisitos}
+
+JDK 21, Maven 3.9+, Docker con Compose v2, Node 20+ y 8\,GB de RAM libres (16 recomendados).
+
+\section{Arranque}
+
+\begin{verbatim}
+./scripts/start.sh        # infraestructura + 7 servicios + frontend
+./scripts/tunel.sh        # URL HTTPS para el movil (Cloudflare)
+./scripts/coverage.sh 70  # umbral de cobertura
+./scripts/start.sh --stop # apagar todo
+\end{verbatim}
+
+\section{Observabilidad}
+
+Prometheus recolecta \pkg{/actuator/prometheus} de los 7 servicios; Grafana muestra el tablero
+\emph{EnRuta · plataforma} con peticiones por segundo, latencia p95, heap, aciertos de caché de
+ETA e intentos de notificación.
+
+% ============================================================================
+\chapter{Decisiones de diseño}
+% ============================================================================
+
+\begin{table*}[t]
+\centering
+\caption{Resumen de los ADR}
+\small
+\begin{tabular}{@{}L{1cm}L{13cm}@{}}
+\toprule
+\textbf{ADR} & \textbf{Decisión}\\
+\midrule
+0001 & Kafka como broker de eventos (orden, replay y DLQ).\\
+0002 & Un PostgreSQL con cuatro bases separadas en local.\\
+0003 & Puertos no estándar (18080, 5433, 29092) por conflictos de la máquina.\\
+0004 & Outbox con relay por polling y ShedLock.\\
+0005 & JWT RS256 propio con JWKS.\\
+0006 & Idempotencia con reclamación atómica (\pkg{INSERT ... ON CONFLICT}).\\
+0007 & Doble (triple) barrera contra la doble asignación.\\
+0008 & Saga coreografiada entre shipment y dispatch.\\
+0009 & Tracking sin base de datos ni outbox.\\
+0010 & WebSocket de una instancia y token en query string.\\
+0011 & Ingesta GPS asíncrona con 202 y rate limit.\\
+0012 & ETA con caché explícita, cortocircuito y plan B.\\
+0013 & Notificaciones: la fila como outbox de salida.\\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+% ============================================================================
+\chapter{Conclusiones y trabajo futuro}
+\label{ch:futuro}
+% ============================================================================
+
+El sistema demuestra que los problemas difíciles de la última milla no están en el CRUD sino en
+la consistencia: asignar una sola vez, no perder eventos y sobrevivir a los fallos. Las tres
+barreras de asignación, el outbox y la saga son las piezas que sostienen esa garantía, y están
+respaldadas por pruebas de concurrencia e integración.
+
+\section{Trabajo futuro}
+
+\begin{enumerate}[leftmargin=1.2cm]
+  \item Multi-empresa (SaaS) con aislamiento por fila y API keys.
+  \item Precio dinámico, pago y liquidación al repartidor.
+  \item Aplicación móvil nativa con GPS en segundo plano.
+  \item Trazas distribuidas completas (Tempo) y SLOs con alertas.
+  \item Historial de rutas para analítica y ETA basado en datos históricos.
+\end{enumerate}
+
+% ============================================================================
+\begin{thebibliography}{9}
+\bibitem{hohpe} Gregor Hohpe, Bobby Woolf. \emph{Enterprise Integration Patterns}. Addison-Wesley, 2003.
+\bibitem{kleppmann} Martin Kleppmann. \emph{Designing Data-Intensive Applications}. O'Reilly, 2017.
+\bibitem{richardson} Chris Richardson. \emph{Microservices Patterns}. Manning, 2018.
+\bibitem{spring} Spring Boot Reference Documentation, 3.4. \url{https://docs.spring.io/spring-boot/}.
+\bibitem{kafka} Apache Kafka Documentation. \url{https://kafka.apache.org/documentation/}.
+\bibitem{osrm} Project OSRM. \url{https://project-osrm.org/}.
+\bibitem{rfc9457} M. Nottingham et al. \emph{Problem Details for HTTP APIs}, RFC 9457, 2023.
+\end{thebibliography}
+
+% ============================================================================
+\appendix
+\chapter{Glosario}
+
+\begin{description}[leftmargin=3.2cm, style=nextline]
+  \item[Microservicio] Programa con una responsabilidad y su propia base de datos.
+  \item[Evento] Aviso de un hecho ocurrido, con identificador único.
+  \item[Outbox] Tabla donde se escribe el evento en la misma transacción del cambio.
+  \item[Idempotencia] Repetir una operación no cambia el resultado.
+  \item[Saga] Secuencia de pasos con compensaciones.
+  \item[DLQ] Cola de mensajes que agotaron sus reintentos.
+  \item[Circuit breaker] Corta las llamadas a un servicio que falla y usa un plan B.
+  \item[Geocerca] Círculo en el mapa que dispara una acción al entrar.
+  \item[Histéresis] Exigir varias señales consecutivas para confirmar un cambio.
+  \item[JWT / JWKS] Token firmado y llave pública para verificarlo.
+  \item[Flyway] Migraciones versionadas de la base de datos.
+  \item[Testcontainers] Contenedores levantados por las pruebas.
+\end{description}
+
+\chapter{Estructura del repositorio}
+
+\begin{verbatim}
+enruta/
+|--  pom.xml                  parent Maven
+|--  contracts/               eventos y nombres de topicos
+|--  common/                  outbox, idempotencia, errores, geo
+|--  services/
+|  |--  api-gateway/
+|  |--  auth-service/
+|  |--  shipment-service/
+|  |--  dispatch-service/
+|  |--  tracking-service/
+|  |--  routing-eta-service/
+|  `--  notification-service/
+|--  tools/driver-simulator/  conductores automaticos
+|--  web/                     React + Leaflet (PWA)
+|--  infra/                   docker-compose, Prometheus, Grafana, OSRM
+|--  scripts/                 start, tunel, coverage, lab
+|--  docs/                    ADRs, guias y PDFs
+`--  load/k6/                 prueba de carga
+\end{verbatim}
+
+\end{document}

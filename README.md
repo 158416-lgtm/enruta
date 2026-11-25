@@ -179,6 +179,7 @@ p95 < 200 ms.
 | [`docs/laboratorio.md`](docs/laboratorio.md) | **guía práctica**: opera el sistema como cliente y repartidor |
 | [`docs/enruta-explicado-con-plastilina.pdf`](docs/enruta-explicado-con-plastilina.pdf) | **PDF conceptual (14 pág.)**: los microservicios explicados con analogías y colores |
 | [`docs/enruta-codigo-explicado.pdf`](docs/enruta-codigo-explicado.pdf) | **PDF técnico (15 pág.)**: arquitectura, 4 bases, 22 endpoints, anotaciones y código real |
+| [`docs/enruta-documento-ieee.pdf`](docs/enruta-documento-ieee.pdf) | **Documento IEEE (28 pág.)**: MER, diccionario de datos completo, APIs, pruebas y ADRs. Fuente: `docs/latex/enruta-ieee.tex` |
 | [`docs/adr/`](docs/adr) | 13 decisiones con alternativas descartadas |
 
 ## Decisiones
