@@ -176,7 +176,8 @@ p95 < 200 ms.
 | [`docs/exposicion.md`](docs/exposicion.md) | guion de 10–12 min, slides y preguntas probables |
 | [`docs/operacion.md`](docs/operacion.md) | arranque, k6, observabilidad y problemas frecuentes |
 | [`docs/laboratorio.md`](docs/laboratorio.md) | **guía práctica**: opera el sistema como cliente y repartidor |
-| [`docs/enruta-explicado-con-plastilina.pdf`](docs/enruta-explicado-con-plastilina.pdf) | **PDF de 11 páginas**: los microservicios explicados con analogías y colores |
+| [`docs/enruta-explicado-con-plastilina.pdf`](docs/enruta-explicado-con-plastilina.pdf) | **PDF conceptual (14 pág.)**: los microservicios explicados con analogías y colores |
+| [`docs/enruta-codigo-explicado.pdf`](docs/enruta-codigo-explicado.pdf) | **PDF técnico (15 pág.)**: arquitectura, 4 bases, 22 endpoints, anotaciones y código real |
 | [`docs/adr/`](docs/adr) | 13 decisiones con alternativas descartadas |
 
 ## Decisiones
@@ -193,7 +194,7 @@ Comprobado en esta máquina, no solo compilado:
 
 | Elemento | Resultado |
 |---|---|
-| Build | `mvn verify` verde, 12 módulos, 48 tests (incluye IT con PostgreSQL y Redis en Testcontainers) |
+| Build | `mvn verify` verde, 12 módulos, 125 tests (unitarios con Mockito e IT con Testcontainers) |
 | Kafka | healthy; 9 tópicos creados (`tracking.gps.raw` con 6 particiones, retención 1 h) |
 | PostgreSQL | healthy; 4 bases (`authdb`, `shipmentdb`, `dispatchdb`, `notifdb`) |
 | Redis / MailHog | healthy |
