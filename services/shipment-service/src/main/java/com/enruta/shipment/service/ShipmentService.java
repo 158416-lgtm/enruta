@@ -85,6 +85,14 @@ public class ShipmentService {
                 shipment, history.findByShipmentIdOrderByOccurredAtAsc(shipmentId));
     }
 
+    /** Bitacora de estados del envio, con control de acceso. */
+    @Transactional(readOnly = true)
+    public List<ShipmentStatusHistory> history(UUID shipmentId, UUID actorId, List<String> roles) {
+        Shipment shipment = load(shipmentId);
+        assertCanRead(shipment, actorId, roles);
+        return history.findByShipmentIdOrderByOccurredAtAsc(shipmentId);
+    }
+
     @Transactional
     public ShipmentView cancel(UUID shipmentId, UUID actorId, List<String> roles) {
         Shipment shipment = load(shipmentId);

@@ -116,6 +116,44 @@ public class ShipmentController {
         return shipments.cancel(id, UUID.fromString(jwt.getSubject()), roles(jwt));
     }
 
+    /** Timeline completo del envio: quien cambio el estado y por que. */
+    @GetMapping("/{id}/history")
+    public List<HistoryView> history(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt) {
+        return shipments.history(id, UUID.fromString(jwt.getSubject()), roles(jwt)).stream()
+                .map(HistoryView::from)
+                .toList();
+    }
+
+    /** Asignacion manual de un conductor (soporte cuando el despacho automatico falla). */
+    @PostMapping("/{id}/assign")
+    public ShipmentView assign(
+            @PathVariable UUID id, @RequestParam UUID driverId, @AuthenticationPrincipal Jwt jwt) {
+        if (!roles(jwt).contains("ADMIN")) {
+            throw new BusinessException(
+                    "FORBIDDEN", "Solo un administrador asigna manualmente", HttpStatus.FORBIDDEN);
+        }
+        return shipments.assign(id, driverId, UUID.fromString(jwt.getSubject()));
+    }
+
+    public record HistoryView(
+            Long id,
+            String fromStatus,
+            String toStatus,
+            UUID actorId,
+            String reason,
+            java.time.Instant occurredAt) {
+
+        public static HistoryView from(com.enruta.shipment.domain.ShipmentStatusHistory entry) {
+            return new HistoryView(
+                    entry.getId(),
+                    entry.getFromStatus() == null ? null : entry.getFromStatus().name(),
+                    entry.getToStatus().name(),
+                    entry.getActorId(),
+                    entry.getReason(),
+                    entry.getOccurredAt());
+        }
+    }
+
     static List<String> roles(Jwt jwt) {
         List<String> roles = jwt.getClaimAsStringList("roles");
         return roles == null ? List.of() : roles;

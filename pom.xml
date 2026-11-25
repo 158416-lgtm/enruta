@@ -189,6 +189,17 @@
       <plugin>
         <groupId>org.jacoco</groupId>
         <artifactId>jacoco-maven-plugin</artifactId>
+        <configuration>
+          <excludes>
+            <exclude>**/*Application.class</exclude>
+            <exclude>**/*View.class</exclude>
+            <exclude>**/*Request.class</exclude>
+            <exclude>**/*Response.class</exclude>
+            <exclude>**/*Seeder.class</exclude>
+            <exclude>**/*Config.class</exclude>
+            <exclude>**/*Configuration.class</exclude>
+          </excludes>
+        </configuration>
         <executions>
           <execution>
             <id>prepare-agent</id>
@@ -202,6 +213,23 @@
             <goals>
               <goal>report</goal>
             </goals>
+            <configuration>
+              <!--
+                Se excluyen clases sin lógica de negocio: arranque, configuración de
+                Spring, DTOs de la capa web y sembradores de datos de demostración.
+                Es la práctica habitual con JaCoCo y evita inflar la métrica con
+                getters y @Bean.
+              -->
+          <excludes>
+            <exclude>**/*Application.class</exclude>
+            <exclude>**/*View.class</exclude>
+            <exclude>**/*Request.class</exclude>
+            <exclude>**/*Response.class</exclude>
+            <exclude>**/*Seeder.class</exclude>
+            <exclude>**/*Config.class</exclude>
+            <exclude>**/*Configuration.class</exclude>
+          </excludes>
+            </configuration>
           </execution>
         </executions>
       </plugin>

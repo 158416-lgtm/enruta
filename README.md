@@ -3,8 +3,9 @@
 Plataforma de logística de última milla con microservicios: asignación de repartidores,
 rastreo GPS en vivo y notificaciones. Demo sobre el casco urbano de **Fusagasugá, Cundinamarca**.
 
-> Estado: **S0 — esqueleto, infraestructura y CI**. Los servicios arrancan y responden
-> `/actuator/health`; la lógica de negocio entra desde S1 (ver [Roadmap](#roadmap)).
+> Estado: **completo (S0–S6)**. 7 microservicios, 4 bases PostgreSQL, Kafka, Redis, OSRM y
+> notificaciones con reintentos. Ver [Requisitos del curso](#requisitos-del-curso) y
+> [`docs/despliegue.md`](docs/despliegue.md).
 
 ## Arquitectura
 
@@ -41,6 +42,19 @@ rastreo GPS en vivo y notificaciones. Demo sobre el casco urbano de **Fusagasug�
 
 Verificación rápida: `./scripts/preflight.sh`
 
+## Requisitos del curso
+
+| Requisito | Cómo se cumple |
+|---|---|
+| Mínimo 3 microservicios | **7**: gateway, auth, shipment, dispatch, tracking, routing-eta y notification |
+| Una base de datos | PostgreSQL 16 con 4 bases (`authdb`, `shipmentdb`, `dispatchdb`, `notifdb`), una por servicio que necesita persistencia |
+| Sistema de notificación | `notification-service`: fila persistida + reintentos con backoff + DLQ en Kafka + correo real (MailHog en local, SMTP en producción) y endpoints de prueba, reintento manual y estadísticas |
+| 5 APIs no-CRUD por microservicio | auth 6, shipment 6, dispatch 7, tracking 5, routing 6, notification 5 (ver [API disponible](#api-disponible)) |
+| Cobertura de pruebas ≥ 90 % | `mvn verify` + [`scripts/coverage.sh`](scripts/coverage.sh) (líneas, JaCoCo) |
+| Mínimo 2 APIs externas | **OSRM** (rutas/ETA/matriz) y **Nominatim** (geocodificación), ambas de OpenStreetMap |
+| Carga y estrés, p95 ≤ 500 ms | [`load/ab.sh`](load/ab.sh) + resultados en [`docs/carga.md`](docs/carga.md) |
+| Despliegue autónomo | [`docs/despliegue.md`](docs/despliegue.md): compose de producción, VPS o Railway/Render, imágenes en GHCR |
+
 ## Arranque
 
 ```bash
@@ -67,7 +81,7 @@ mvn -pl services/shipment-service -am spring-boot:run
 ```bash
 mvn -T 1C verify        # compila, tests, jacoco y spotless
 mvn spotless:apply      # formatea
-./scripts/coverage.sh   # exige >= 70% de líneas (lo mismo que hace el CI)
+./scripts/coverage.sh   # exige >= 90% de líneas (lo mismo que hace el CI)
 ```
 
 ## Puertos
@@ -160,14 +174,26 @@ Una ventana con los 7 servicios en colores que va narrando lo que pasa mientras 
 Guía completa con pruebas de idempotencia, doble aceptación simultánea, Kafka y resiliencia en
 [`docs/laboratorio.md`](docs/laboratorio.md).
 
-## Prueba de carga
+## Prueba de carga y estrés
 
 ```bash
-RATE=300 DURATION=60s k6 run load/k6/ingest.js
+./load/ab.sh 2000 20        # 2000 peticiones, 20 concurrentes, umbral p95 <= 500 ms
+./load/ab.sh 3000 100       # estrés
 ```
 
-Instrucciones completas en [`docs/operacion.md`](docs/operacion.md). Umbrales: 99% de `202` y
-p95 < 200 ms.
+Genera [`docs/carga.md`](docs/carga.md) con RPS, p50, p95 y p99 por endpoint y falla si el p95
+supera 500 ms. También existe una prueba de ingesta GPS con k6 en `load/k6/ingest.js`.
+
+## APIs externas
+
+| API | Uso | Dónde |
+|---|---|---|
+| **OSRM** (OpenStreetMap Routing Machine) | Rutas por calle, distancia, matriz origen-destino, punto más cercano y ETA | `routing-eta-service` (`OsrmClient`, `OsrmAdvancedClient`) |
+| **Nominatim** (OpenStreetMap) | Geocodificación de direcciones (texto → lat/lng) con caché de 24 h | `routing-eta-service` (`NominatimClient`, `/api/v1/eta/geocode`) |
+
+Además, el frontend consume los **tiles de OpenStreetMap** para dibujar el mapa. OSRM y Nominatim
+son servicios públicos de OpenStreetMap; OSRM se ejecuta en local con el extract de Fusagasugá para
+no depender de la red durante la demo.
 
 ## Documentación
 
@@ -176,9 +202,11 @@ p95 < 200 ms.
 | [`docs/c4.md`](docs/c4.md) | diagramas C4 y secuencias (Mermaid) |
 | [`docs/exposicion.md`](docs/exposicion.md) | guion de 10–12 min, slides y preguntas probables |
 | [`docs/operacion.md`](docs/operacion.md) | arranque, k6, observabilidad y problemas frecuentes |
+| [`docs/carga.md`](docs/carga.md) | resultados de carga y estrés con `ab` (p50/p95/p99) |
+| [`docs/despliegue.md`](docs/despliegue.md) | despliegue real (VPS/Railway), variables y por qué Cloudflare Tunnel no es despliegue |
 | [`docs/laboratorio.md`](docs/laboratorio.md) | **guía práctica**: opera el sistema como cliente y repartidor |
 | [`docs/enruta-explicado-con-plastilina.pdf`](docs/enruta-explicado-con-plastilina.pdf) | **PDF conceptual (14 pág.)**: los microservicios explicados con analogías y colores |
-| [`docs/enruta-codigo-explicado.pdf`](docs/enruta-codigo-explicado.pdf) | **PDF técnico (15 pág.)**: arquitectura, 4 bases, 22 endpoints, anotaciones y código real |
+| [`docs/enruta-codigo-explicado.pdf`](docs/enruta-codigo-explicado.pdf) | **PDF técnico (15 pág.)**: arquitectura, 4 bases, anotaciones y código real (los endpoints vigentes están en el documento IEEE) |
 | [`docs/enruta-documento-ieee.pdf`](docs/enruta-documento-ieee.pdf) | **Documento IEEE (28 pág.)**: MER, diccionario de datos completo, APIs, pruebas y ADRs. Fuente: `docs/latex/enruta-ieee.tex` |
 | [`docs/adr/`](docs/adr) | 13 decisiones con alternativas descartadas |
 
@@ -196,7 +224,7 @@ Comprobado en esta máquina, no solo compilado:
 
 | Elemento | Resultado |
 |---|---|
-| Build | `mvn verify` verde, 12 módulos, **166 tests** y **71,9 % de cobertura de líneas** |
+| Build | `mvn verify` verde, 12 módulos, **353 tests** y **97,7 % de cobertura de líneas** (9 módulos medidos; excluye arranque/configuración/DTOs/seeders y el simulador de demo) |
 | Kafka | healthy; 9 tópicos creados (`tracking.gps.raw` con 6 particiones, retención 1 h) |
 | PostgreSQL | healthy; 4 bases (`authdb`, `shipmentdb`, `dispatchdb`, `notifdb`) |
 | Redis / MailHog | healthy |
@@ -211,6 +239,7 @@ Comprobado en esta máquina, no solo compilado:
 | S5 reintentos | MailHog apagado → 3 intentos (2s, 3s, 5s) → `FAILED` + mensaje en `notification.commands.dlq` con destinatario y error |
 | S6 frontend | `vite build` OK; login por proxy y listado de envíos verificado contra el gateway |
 | S6 observabilidad | Prometheus **8/8 targets UP**; dashboard de Grafana provisionado |
+| S7 entrega | **353 tests** en verde, cobertura **97,7 %**, notificación `SENT` verificada en MailHog, p95 **≤ 46 ms** con 20 concurrentes y **2 APIs externas** (OSRM + Nominatim) |
 
 > **Docker 29 + Testcontainers:** el cliente de Testcontainers usa API 1.32 y Docker 29 exige
 > 1.44. En esta máquina se resolvió con `~/.docker-java.properties` → `api.version=1.44`.
@@ -228,7 +257,7 @@ Comprobado en esta máquina, no solo compilado:
 | S5 | notifications (reintentos, DLQ, MailHog) | ✅ |
 | S6 | Frontend, observabilidad, k6, documentación y demo | ✅ |
 
-## API disponible (S1)
+## API disponible
 
 | Método | Ruta | Notas |
 |---|---|---|
@@ -239,8 +268,11 @@ Comprobado en esta máquina, no solo compilado:
 | GET | `/api/v1/auth/jwks` | llave pública (público) |
 | GET | `/api/v1/auth/me` | requiere token |
 | POST | `/api/v1/shipments` | **requiere `Idempotency-Key`** |
+| GET | `/api/v1/shipments` | página filtrable por estado (cliente ve lo suyo; admin ve todo) |
 | GET | `/api/v1/shipments/{id}` | dueño, conductor asignado o admin |
+| GET | `/api/v1/shipments/{id}/history` | bitácora de estados con actor y motivo |
 | POST | `/api/v1/shipments/{id}/cancel` | cliente hasta `ASSIGNED`; admin hasta `IN_TRANSIT` |
+| POST | `/api/v1/shipments/{id}/assign` | asignación manual, solo ADMIN (`?driverId=`) |
 | POST | `/api/v1/drivers/{id}/location` | el conductor reporta posición (202) |
 | POST | `/api/v1/drivers/{id}/availability` | `AVAILABLE` / `BUSY` / `OFFLINE` |
 | GET | `/api/v1/drivers/{id}/offers` | ofertas vigentes del conductor |
@@ -250,11 +282,22 @@ Comprobado en esta máquina, no solo compilado:
 | GET | `/api/v1/dispatch/shipments/{id}` | fase, ronda y oferta actual (diagnóstico) |
 | POST | `/api/v1/tracking/drivers/{id}/location` | lote de hasta 10 puntos, responde **202** |
 | GET | `/api/v1/tracking/shipments/{id}` | última posición y suscriptores |
+| GET | `/api/v1/tracking/shipments/{id}/trail` | últimos 200 puntos del recorrido |
+| GET | `/api/v1/tracking/drivers/{id}/last` | última posición de un conductor |
+| GET | `/api/v1/tracking/stats` | envíos con recorrido y conductores con posición |
 | WS | `/ws/tracking?shipmentId=&token=` | posiciones en vivo |
 | GET | `/api/v1/eta?fromLat=&fromLng=&toLat=&toLng=` | ruta y ETA con caché y plan B |
+| GET | `/api/v1/eta/route?fromLat=&fromLng=&toLat=&toLng=` | ruta con geometría para el mapa |
+| GET | `/api/v1/eta/distance?fromLat=&fromLng=&toLat=&toLng=` | solo distancia por calle |
+| POST | `/api/v1/eta/matrix` | matriz N×M de distancias (orígenes y destinos) |
+| GET | `/api/v1/eta/nearest?lat=&lng=` | ajusta el GPS a la calle más cercana |
+| GET | `/api/v1/eta/geocode?q=` | **Nominatim**: dirección → coordenadas (caché 24 h) |
 | GET | `/api/v1/notifications?shipmentId=` | historial de notificaciones del envío |
 | GET | `/api/v1/notifications/{id}` | estado, intentos y último error |
+| POST | `/api/v1/notifications/{id}/retry` | reintento manual, solo ADMIN |
+| GET | `/api/v1/notifications/stats` | conteo por estado (`PENDING`, `SENT`, `FAILED`) |
 | POST | `/api/v1/notifications/test` | solo ADMIN; encola un correo de prueba |
+
 
 ### Canal en vivo (WebSocket)
 

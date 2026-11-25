@@ -2,13 +2,34 @@
  EnRuta — URLs
 ==========================================================
  MAPA (PC) ........... http://localhost:5173
- MOVIL (repartidor) .. https://describe-auburn-limitations-die.trycloudflare.com
  GRAFANA ............. http://localhost:3000
  MAILHOG ............. http://localhost:8025
  PROMETHEUS .......... http://localhost:9090
  API (gateway) ....... http://localhost:18080
+ OSRM ................ http://localhost:5000
 ==========================================================
- crear envio ...... ./scripts/demo.sh new
- renovar link ..... ./scripts/tunel.sh
- detener todo ..... ./scripts/start.sh --stop
+ NUEVAS APIS (con token)
+==========================================================
+ geocodificar ....... GET  /api/v1/eta/geocode?q=Fusagasuga
+ ruta con mapa ...... GET  /api/v1/eta/route?fromLat=4.3449&fromLng=-74.3674&toLat=4.3374&toLng=-74.36
+ matriz ............. POST /api/v1/eta/matrix
+ recorrido .......... GET  /api/v1/tracking/shipments/{id}/trail
+ ultima posicion .... GET  /api/v1/tracking/drivers/{id}/last
+ estado notifs ...... GET  /api/v1/notifications/stats
+ reintentar correo .. POST /api/v1/notifications/{id}/retry
+ historial envio .... GET  /api/v1/shipments/{id}/history
+==========================================================
+ COMANDOS
+==========================================================
+ crear envio ......... ./scripts/demo.sh new
+ renovar tunel ....... ./scripts/tunel.sh
+ pruebas de carga .... ./load/ab.sh 2000 20
+ cobertura ........... ./scripts/coverage.sh 90
+ detener todo ........ ./scripts/start.sh --stop
+==========================================================
+ IMPORTANTE
+==========================================================
+ El tunel de Cloudflare (trycloudflare.com) es TEMPORAL y depende
+ de este computador. NO es un despliegue. Para desplegar de verdad,
+ sigue docs/despliegue.md (VPS con Docker Compose o Railway/Render).
 ==========================================================

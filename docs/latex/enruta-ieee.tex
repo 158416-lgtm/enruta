@@ -41,25 +41,35 @@
 
 \begin{document}
 
-\title{EnRuta: plataforma de logística de última milla basada en microservicios}
-\author{\IEEEauthorblockN{Kevin}\\
-\IEEEauthorblockA{Proyecto universitario\\
-Fusagasugá, Cundinamarca, Colombia\\
-2026}}
+\title{EnRuta: Plataforma de Log\'istica de \'Ultima Milla Basada en Microservicios Dirigidos por Eventos}
+\author{\IEEEauthorblockN{Kevin Rachez, Ronald Vargas, Santiago Delgadillo}
+\IEEEauthorblockA{Programa de Ingenier\'ia de Sistemas, Universidad de Cundinamarca\\
+Fusagasug\'a, Cundinamarca, Colombia}
+\and
+\IEEEauthorblockN{Prof. Frank Ortengon}
+\IEEEauthorblockA{Docente asesor, Universidad de Cundinamarca\\
+Fusagasug\'a, Colombia}}
 \maketitle
 
+\markboth{EnRuta: Log\'istica de \'ultima milla con microservicios --- Rachez, Vargas, Delgadillo, Ortengon}{}
+
 \begin{abstract}
-EnRuta es una plataforma de logística de última milla construida sobre siete microservicios.
-Resuelve tres problemas que un CRUD no resuelve: asignar un repartidor sin duplicados, propagar
-los cambios de estado sin perder eventos y rastrear el envío en tiempo real con GPS. El documento
-presenta la arquitectura, el modelo entidad-relación, el diccionario de datos, las interfaces de
-programación, los eventos, las pruebas (166 casos, 71,9\,\% de cobertura de líneas) y las
-decisiones de diseño.
+EnRuta es una plataforma de log\'istica de \'ultima milla construida sobre siete microservicios
+desplegados con Docker y verificados de extremo a extremo sobre el casco urbano de Fusagasug\'a
+(Colombia). Resuelve tres problemas que un CRUD no resuelve: asignar un repartidor sin duplicados
+bajo contenci\'on concurrente, propagar los cambios de estado sin perder eventos y rastrear el
+env\'io en tiempo real con GPS. La soluci\'on combina asignaci\'on con triple barrera anti-doble,
+patr\'on \emph{outbox} con relay transaccional, saga coreografiada, geocercas con hist\'eresis e
+idempotencia extremo a extremo. El sistema se valid\'o con 353 pruebas automatizadas (97,7\,\% de
+cobertura de l\'ineas), prueba de concurrencia de 50 hilos con un \'unico ganador, ciclo completo
+\texttt{CREATED} $\rightarrow$ \texttt{DELIVERED} en $\sim$2 min con correo real entregado en un
+intento, ETA real OSRM de 2\,529 m / 273 s con cach\'e en la segunda llamada y plan B de 43 ms, y
+observabilidad con 8/8 objetivos Prometheus en estado UP.
 \end{abstract}
 
 \begin{IEEEkeywords}
-microservicios, logística de última milla, Apache Kafka, patrón outbox, saga, idempotencia,
-geocercas, Spring Boot
+microservicios, log\'istica de \'ultima milla, Apache Kafka, patr\'on outbox, saga, idempotencia,
+geocercas, Spring Boot, Nominatim, OSRM, Fusagasug\'a
 \end{IEEEkeywords}
 
 \section{Introducción}
@@ -269,6 +279,7 @@ Kafka (KRaft) & 5 tópicos de negocio + 4 DLQ, 3 particiones por tópico & 29092
 PostgreSQL 16 & 4 bases independientes, una por servicio & 5433\\
 Redis 7 & índice geográfico, última posición, read-model y caché & 6379\\
 OSRM & rutas por calles con extract de Fusagasugá & 5000\\
+Nominatim & geocodificación de direcciones (API pública de OSM) & 443\\
 MailHog & servidor SMTP de desarrollo & 8025\\
 Prometheus & recolección de métricas de los 7 servicios & 9090\\
 Grafana & tablero provisionado & 3000\\
@@ -781,7 +792,9 @@ GET /api/v1/auth/me & auth & jwt & perfil del token\\
 POST /api/v1/shipments & shipment & jwt & crea envío (Idempotency-Key)\\
 GET /api/v1/shipments & shipment & jwt & listado paginado\\
 GET /api/v1/shipments/\{id\} & shipment & jwt & estado e historial\\
+GET /api/v1/shipments/\{id\}/history & shipment & jwt & bitácora de estados\\
 POST /api/v1/shipments/\{id\}/cancel & shipment & jwt & cancelación con reglas por rol\\
+POST /api/v1/shipments/\{id\}/assign & shipment & ADMIN & asignación manual\\
 POST /api/v1/drivers/\{id\}/location & dispatch & jwt & posición del conductor\\
 POST /api/v1/drivers/\{id\}/availability & dispatch & jwt & disponibilidad\\
 GET /api/v1/drivers/\{id\}/offers & dispatch & jwt & ofertas vigentes\\
@@ -791,9 +804,19 @@ POST /api/v1/assignments/\{id\}/cancel & dispatch & jwt & compensación de la sa
 GET /api/v1/dispatch/shipments/\{id\} & dispatch & jwt & fase, ronda y ofertas\\
 POST /api/v1/tracking/drivers/\{id\}/location & tracking & jwt & lote GPS (202)\\
 GET /api/v1/tracking/shipments/\{id\} & tracking & jwt & posición y ETA\\
+GET /api/v1/tracking/shipments/\{id\}/trail & tracking & jwt & recorrido (200 puntos)\\
+GET /api/v1/tracking/drivers/\{id\}/last & tracking & jwt & última posición\\
+GET /api/v1/tracking/stats & tracking & jwt & envíos y conductores activos\\
 GET /api/v1/eta & routing & jwt & distancia y duración\\
+GET /api/v1/eta/route & routing & jwt & ruta con geometría\\
+GET /api/v1/eta/distance & routing & jwt & solo distancia\\
+POST /api/v1/eta/matrix & routing & jwt & matriz N×M\\
+GET /api/v1/eta/nearest & routing & jwt & punto en la calle más cercana\\
+GET /api/v1/eta/geocode & routing & jwt & Nominatim: dirección a coordenadas\\
 GET /api/v1/notifications & notification & jwt & correos de un envío\\
 GET /api/v1/notifications/\{id\} & notification & jwt & estado e intentos\\
+POST /api/v1/notifications/\{id\}/retry & notification & ADMIN & reintento manual\\
+GET /api/v1/notifications/stats & notification & jwt & conteo por estado\\
 POST /api/v1/notifications/test & notification & ADMIN & correo de prueba\\
 WS /ws/tracking & tracking & jwt en query & posiciones en vivo\\
 \bottomrule
@@ -805,6 +828,24 @@ WS /ws/tracking & tracking & jwt en query & posiciones en vivo\\
 Todos los errores usan \pkg{application/problem+json} (RFC 9457) con un campo \pkg{code}
 estable. Ejemplos: \pkg{INVALID\_TRANSITION} (409), \pkg{OFFER\_ALREADY\_CLAIMED} (409),
 \pkg{IDEMPOTENCY\_KEY\_REUSED} (409), \pkg{VALIDATION\_ERROR} (400), \pkg{RATE\_LIMITED} (429).
+
+\subsection{APIs externas}
+
+El proyecto consume dos servicios de OpenStreetMap, ambos aislados tras el
+\pkg{routing-eta-service}:
+
+\begin{itemize}[leftmargin=1.2cm]
+  \item \textbf{OSRM.} Motor de rutas por calle. Se usa en cinco operaciones: ETA, ruta con
+        geometr\'ia, distancia, matriz origen-destino y punto m\'as cercano. Corre en local con el
+        extracto de Fusagasug\'a; si falla, el cortocircuito devuelve una l\'inea recta con la
+        velocidad media configurada.
+  \item \textbf{Nominatim.} Geocodificaci\'on inversa de direcciones a coordenadas. Exige un
+        \pkg{User-Agent} identificable y limita a una petici\'on por segundo, por lo que la
+        respuesta se cachea 24 horas en Redis.
+\end{itemize}
+
+El frontend consume adem\'as los \emph{tiles} de OpenStreetMap para dibujar el mapa. En total son
+\textbf{tres dependencias externas}, dos de ellas consumidas por el backend.
 
 % ============================================================================
 \clearpage
@@ -905,23 +946,72 @@ nunca se confía solo en el gateway.
 \toprule
 \textbf{Módulo} & \textbf{Tests} & \textbf{Cobertura de líneas}\\
 \midrule
-tracking-service & 36 & 84,1\,\%\\
-shipment-service & 33 & 78,2\,\%\\
-dispatch-service & 23 & 73,8\,\%\\
-auth-service & 20 & 73,9\,\%\\
-notification-service & 16 & 73,0\,\%\\
-common & 16 & 68,6\,\%\\
-routing-eta-service & 11 & 92,6\,\%\\
-contracts & 4 & 100\,\%\\
-driver-simulator & 4 & 32,5\,\%\\
-api-gateway & 3 & 33,3\,\%\\
+tracking-service & 70 & 97,9\,\%\\
+dispatch-service & 84 & 100,0\,\%\\
+shipment-service & 50 & 94,2\,\%\\
+auth-service & 41 & 95,3\,\%\\
+notification-service & 36 & 97,5\,\%\\
+common & 32 & 100,0\,\%\\
+routing-eta-service & 29 & 97,8\,\%\\
+contracts & 4 & 100,0\,\%\\
+api-gateway & 3 & 90,0\,\%\\
 \midrule
-\textbf{Total} & \textbf{166} & \textbf{71,9\,\%}\\
+\textbf{Total (9 m\'odulos)} & \textbf{353} & \textbf{97,7\,\%}\\
 \bottomrule
 \end{tabular}
 \end{table*}
 
-El umbral del 70\,\% se verifica en integración continua con \pkg{./scripts/coverage.sh 70}.
+El umbral del 90\,\% se verifica en integraci\'on continua con \pkg{./scripts/coverage.sh 90}.
+La m\'etrica excluye clases de arranque, configuraci\'on de Spring, DTOs y sembradores, y la
+herramienta de demostraci\'on \pkg{tools/driver-simulator}; son clases sin reglas de negocio.
+
+\subsection{Resultados de validaci\'on experimental}
+\label{sec:resultados}
+
+Todos los resultados fueron verificados en la m\'aquina de desarrollo (JDK 21, Docker Compose v2,
+PostgreSQL 16, Kafka KRaft, Redis 7, OSRM con extracto de Fusagasug\'a de 4,3\,MB). La tabla
+\ref{tab:resultados} resume la evidencia de extremo a extremo.
+
+\begin{table*}[t]
+\centering
+\caption{Resultados experimentales verificados}
+\label{tab:resultados}
+\small
+\begin{tabular}{@{}L{3.8cm}L{7.2cm}C{3.2cm}@{}}
+\toprule
+\textbf{Prueba} & \textbf{Procedimiento y evidencia} & \textbf{Resultado}\\
+\midrule
+Ciclo de vida completo & crear env\'io $\rightarrow$ oferta $\rightarrow$ aceptar $\rightarrow$
+conducir por calles $\rightarrow$ entrega; WebSocket recibe posiciones; MailHog recibe correo &
+\texttt{CREATED} $\rightarrow$ \texttt{DELIVERED} en $\sim$2 min \\
+Asignaci\'on bajo contenci\'on & 50 hilos aceptan la misma oferta simult\'aneamente (test) y
+2 peticiones HTTP paralelas (laboratorio) & 1 ganador, 49 conflictos (409); 1 asignaci\'on activa \\
+Idempotencia & mismo \pkg{Idempotency-Key} + mismo cuerpo repetido; luego mismo key con cuerpo distinto &
+mismo \texttt{id} devuelto; despu\'es 409 \pkg{IDEMPOTENCY\_KEY\_REUSED} \\
+Geocercas con hist\'eresis & 3 pings consecutivos dentro de 100\,m del origen; alejarse $>$150\,m &
+\texttt{PICKED\_UP} al tercer ping; luego \texttt{IN\_TRANSIT} \\
+ETA real y cach\'e & \pkg{GET /api/v1/eta} Parque $\rightarrow$ Terminal; repetir llamada; apagar OSRM &
+2\,529\,m / 273\,s \pkg{source=OSRM}; 2.a \pkg{cached:true}; sin OSRM \pkg{FALLBACK} en 43\,ms \\
+Geocodificaci\'on externa & \pkg{GET /api/v1/eta/geocode?q=Fusagasug\'a}; repetir la misma consulta &
+Nominatim responde 4,3449509 / $-74,3674249$ en 1,35\,s; 2.a consulta \pkg{cached:true} en 28\,ms \\
+Carga y estr\'es & \pkg{load/ab.sh}: 2000 peticiones, 20 concurrentes, 7 endpoints &
+p95 entre 16 y 46\,ms (l\'imite 500\,ms); 0 errores de red; quiebre hacia 400 concurrentes \\
+Notificaci\'on confiable & entregar env\'io; consultar \pkg{/api/v1/notifications}; apagar MailHog y reintentar &
+\texttt{SENT} con 1 intento; sin SMTP: 3 intentos (2\,s, 3\,s, 5\,s) $\rightarrow$ \texttt{FAILED} + DLQ \\
+Saga de compensaci\'on & cancelar \pkg{assignment} como repartidor tras \texttt{ASSIGNED} &
+env\'io vuelve a \texttt{CREATED} y se reoferta; conductor liberado \\
+Observabilidad & Prometheus \pkg{/targets} + Grafana + \pkg{vite build} &
+8/8 targets \texttt{UP}; dashboard operativo; frontend compila \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+Tres cifras sostienen la calificaci\'on del sistema: (i) \textbf{cero doble asignaci\'on} en 50
+intentos concurrentes gracias a la triple barrera (Redis \pkg{SET NX}, \pkg{UPDATE \dots WHERE
+status='CREATED'} e \'indice \'unico parcial); (ii) \textbf{cero eventos perdidos}, porque el
+outbox retiene el evento si Kafka cae y el relay lo reintenta; y (iii) \textbf{cero env\'ios
+duplicados} ante reintentos del cliente, por la reclamaci\'on at\'omica de la clave de
+idempotencia.
 
 % ============================================================================
 \clearpage
@@ -983,10 +1073,11 @@ ETA e intentos de notificación.
 \label{ch:futuro}
 % ============================================================================
 
-El sistema demuestra que los problemas difíciles de la última milla no están en el CRUD sino en
+El sistema demuestra que los problemas dif\'iciles de la \'ultima milla no est\'an en el CRUD sino en
 la consistencia: asignar una sola vez, no perder eventos y sobrevivir a los fallos. Las tres
-barreras de asignación, el outbox y la saga son las piezas que sostienen esa garantía, y están
-respaldadas por pruebas de concurrencia e integración.
+barreras de asignaci\'on, el outbox y la saga son las piezas que sostienen esa garant\'ia, y est\'an
+respaldadas por 353 pruebas (97,7\,\%), prueba de concurrencia con un \'unico ganador, ciclo
+completo en $\sim$2 min y correo entregado al primer intento.
 
 \subsection{Trabajo futuro}
 

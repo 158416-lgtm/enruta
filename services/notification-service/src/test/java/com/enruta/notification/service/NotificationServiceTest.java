@@ -93,4 +93,99 @@ class NotificationServiceTest {
         assertThat(notification.getNextAttemptAt()).isNull();
         verify(kafka).send(eq("notification.commands.dlq"), anyString(), anyString());
     }
+
+    @Test
+    void processDueAttemptsEveryReservedNotification() throws Exception {
+        stubSave();
+        Notification pending =
+                new Notification(UUID.randomUUID(), "EMAIL", "cliente@enruta.test", "TEST", "{}");
+        when(repository.lockDue(50)).thenReturn(List.of(pending));
+        NotificationService service = service(new RetryPolicy(3, List.of(Duration.ofSeconds(2))));
+
+        int processed = service.processDue();
+
+        assertThat(processed).isEqualTo(1);
+        assertThat(pending.getStatus()).isEqualTo(Notification.Status.SENT);
+        verify(sender).send(pending);
+    }
+
+    @Test
+    void attemptNowOnlyRetriesPendingNotifications() throws Exception {
+        stubSave();
+        Notification pending =
+                new Notification(UUID.randomUUID(), "EMAIL", "cliente@enruta.test", "TEST", "{}");
+        when(repository.findById(pending.getId())).thenReturn(java.util.Optional.of(pending));
+        NotificationService service = service(new RetryPolicy(3, List.of(Duration.ofSeconds(2))));
+
+        Notification result = service.attemptNow(pending.getId());
+
+        assertThat(result.getStatus()).isEqualTo(Notification.Status.SENT);
+        verify(sender).send(pending);
+    }
+
+    @Test
+    void attemptNowLeavesSentNotificationsUntouched() throws Exception {
+        stubSave();
+        Notification sent =
+                new Notification(UUID.randomUUID(), "EMAIL", "cliente@enruta.test", "TEST", "{}");
+        sent.markSent();
+        when(repository.findById(sent.getId())).thenReturn(java.util.Optional.of(sent));
+        NotificationService service = service(new RetryPolicy(3, List.of(Duration.ofSeconds(2))));
+
+        service.attemptNow(sent.getId());
+
+        verify(sender, never()).send(any());
+    }
+
+    @Test
+    void attemptNowFailsForAnUnknownNotification() {
+        UUID id = UUID.randomUUID();
+        when(repository.findById(id)).thenReturn(java.util.Optional.empty());
+        NotificationService service = service(new RetryPolicy(3, List.of(Duration.ofSeconds(2))));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.attemptNow(id))
+                .isInstanceOf(com.enruta.common.error.BusinessException.class);
+    }
+
+    @Test
+    void byShipmentAndFindReadFromTheRepository() {
+        UUID shipmentId = UUID.randomUUID();
+        Notification notification =
+                new Notification(shipmentId, "EMAIL", "cliente@enruta.test", "TEST", "{}");
+        when(repository.findByShipmentIdOrderByCreatedAtDesc(shipmentId))
+                .thenReturn(List.of(notification));
+        when(repository.findById(notification.getId()))
+                .thenReturn(java.util.Optional.of(notification));
+        NotificationService service = service(new RetryPolicy(3, List.of(Duration.ofSeconds(2))));
+
+        assertThat(service.byShipment(shipmentId)).containsExactly(notification);
+        assertThat(service.find(notification.getId())).isEqualTo(notification);
+    }
+
+    @Test
+    void findFailsForAnUnknownNotification() {
+        UUID id = UUID.randomUUID();
+        when(repository.findById(id)).thenReturn(java.util.Optional.empty());
+        NotificationService service = service(new RetryPolicy(3, List.of(Duration.ofSeconds(2))));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.find(id))
+                .isInstanceOf(com.enruta.common.error.BusinessException.class);
+    }
+
+    @Test
+    void dlqFailureDoesNotEscape() throws Exception {
+        stubSave();
+        org.mockito.Mockito.doThrow(new IllegalStateException("smtp caido"))
+                .when(sender)
+                .send(any());
+        when(kafka.send(anyString(), anyString(), anyString()))
+                .thenThrow(new IllegalStateException("kafka caido"));
+        NotificationService service = service(new RetryPolicy(1, List.of(Duration.ofSeconds(2))));
+
+        Notification notification =
+                service.createAndAttempt(
+                        UUID.randomUUID(), "EMAIL", "cliente@enruta.test", "TEST", "{}");
+
+        assertThat(notification.getStatus()).isEqualTo(Notification.Status.FAILED);
+    }
 }

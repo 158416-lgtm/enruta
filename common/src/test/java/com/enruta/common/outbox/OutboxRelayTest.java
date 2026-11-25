@@ -68,6 +68,21 @@ class OutboxRelayTest {
         verify(kafkaTemplate, never()).send(anyString(), anyString(), anyString());
     }
 
+    @Test
+    void eventsThatExhaustedTheirAttemptsAreSkipped() {
+        OutboxEvent event = event("shipment.events");
+        for (int attempt = 0; attempt < 10; attempt++) {
+            event.registerAttempt();
+        }
+        when(repository.lockPending(100)).thenReturn(List.of(event));
+
+        relay.publishPending();
+
+        verify(kafkaTemplate, never()).send(anyString(), anyString(), anyString());
+        assertThat(event.getPublishedAt()).isNull();
+        assertThat(event.getAttempts()).isEqualTo((short) 10);
+    }
+
     private OutboxEvent event(String topic) {
         return new OutboxEvent(
                 UUID.randomUUID(),

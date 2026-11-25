@@ -29,6 +29,19 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    void serverSideBusinessExceptionIsLoggedAsError() {
+        ProblemDetail problem =
+                handler.handleBusiness(
+                        new BusinessException(
+                                "DEPENDENCY_DOWN",
+                                "no disponible",
+                                HttpStatus.SERVICE_UNAVAILABLE));
+
+        assertThat(problem.getStatus()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE.value());
+        assertThat(problem.getProperties()).containsEntry("code", "DEPENDENCY_DOWN");
+    }
+
+    @Test
     void invalidBodyBecomesValidationError() {
         MethodArgumentNotValidException exception = mock(MethodArgumentNotValidException.class);
         BindingResult binding = mock(BindingResult.class);

@@ -89,6 +89,14 @@ class DriverServiceTest {
     }
 
     @Test
+    void goingBusyRemovesTheDriverFromTheMap() {
+        service.setAvailability(driverId, DriverStatus.BUSY, driverId, List.of("DRIVER"));
+
+        assertThat(driver.getStatus()).isEqualTo(DriverStatus.BUSY);
+        verify(finder).unindex(driverId);
+    }
+
+    @Test
     void goingAvailableIndexesTheLastKnownPosition() {
         service.setAvailability(driverId, DriverStatus.AVAILABLE, driverId, List.of("DRIVER"));
 

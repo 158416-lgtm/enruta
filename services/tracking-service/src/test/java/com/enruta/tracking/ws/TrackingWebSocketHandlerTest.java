@@ -92,6 +92,73 @@ class TrackingWebSocketHandlerTest {
     }
 
     @Test
+    void aPingIsAnsweredWithPong() throws Exception {
+        handler.handleTextMessage(session, new TextMessage("PING"));
+
+        org.mockito.ArgumentCaptor<TextMessage> sent =
+                org.mockito.ArgumentCaptor.forClass(TextMessage.class);
+        verify(session).sendMessage(sent.capture());
+        assertThat(sent.getValue().getPayload()).contains("\"pong\"");
+    }
+
+    @Test
+    void anyOtherMessageIsIgnored() throws Exception {
+        handler.handleTextMessage(session, new TextMessage("hola"));
+
+        verify(session, never()).sendMessage(any(TextMessage.class));
+    }
+
+    @Test
+    void theSnapshotIncludesTheLastKnownPosition() throws Exception {
+        when(session.getUri()).thenReturn(URI.create("ws://x/ws/tracking?shipmentId=s1&token=t"));
+        Jwt jwt = org.mockito.Mockito.mock(Jwt.class);
+        when(jwt.getSubject()).thenReturn("user-1");
+        when(jwtDecoder.decode("t")).thenReturn(jwt);
+        when(redis.opsForHash()).thenReturn(hashOps);
+        when(hashOps.get("shipment:s1", "driverId")).thenReturn("d1");
+        when(hashOps.entries("driver:d1:last"))
+                .thenReturn(Map.of("lat", "4.34", "lng", "-74.36", "at", "2026-11-25T10:00:00Z"));
+
+        handler.afterConnectionEstablished(session);
+
+        org.mockito.ArgumentCaptor<TextMessage> sent =
+                org.mockito.ArgumentCaptor.forClass(TextMessage.class);
+        verify(session, org.mockito.Mockito.times(2)).sendMessage(sent.capture());
+        String snapshot = sent.getAllValues().get(1).getPayload();
+        assertThat(snapshot)
+                .contains("\"type\":\"position\"")
+                .contains("\"driverId\":\"d1\"")
+                .contains("\"lat\":4.34")
+                .contains("\"snapshot\":true");
+    }
+
+    @Test
+    void anEmptyLastPositionSendsNoSnapshot() throws Exception {
+        when(session.getUri()).thenReturn(URI.create("ws://x/ws/tracking?shipmentId=s1&token=t"));
+        Jwt jwt = org.mockito.Mockito.mock(Jwt.class);
+        when(jwt.getSubject()).thenReturn("user-1");
+        when(jwtDecoder.decode("t")).thenReturn(jwt);
+        when(redis.opsForHash()).thenReturn(hashOps);
+        when(hashOps.get("shipment:s1", "driverId")).thenReturn("d1");
+        when(hashOps.entries("driver:d1:last")).thenReturn(Map.of());
+
+        handler.afterConnectionEstablished(session);
+
+        org.mockito.ArgumentCaptor<TextMessage> sent =
+                org.mockito.ArgumentCaptor.forClass(TextMessage.class);
+        verify(session).sendMessage(sent.capture());
+        assertThat(sent.getValue().getPayload()).contains("\"subscribed\"");
+    }
+
+    @Test
+    void closingWithoutShipmentOnlyRemovesTheSession() {
+        handler.afterConnectionClosed(session, CloseStatus.NORMAL);
+
+        verify(broadcaster, never()).unsubscribe(anyString(), any());
+        verify(broadcaster).removeSession(session);
+    }
+
+    @Test
     void queryParamsAreParsed() {
         Map<String, String> params =
                 TrackingWebSocketHandler.queryParams(

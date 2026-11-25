@@ -2,11 +2,13 @@ package com.enruta.notification.web;
 
 import com.enruta.common.error.BusinessException;
 import com.enruta.notification.domain.Notification;
+import com.enruta.notification.repository.NotificationRepository;
 import com.enruta.notification.service.NotificationService;
 import com.enruta.notification.service.TemplateRenderer;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -26,10 +28,15 @@ import org.springframework.web.bind.annotation.RestController;
 public class NotificationController {
 
     private final NotificationService notifications;
+    private final NotificationRepository repository;
     private final TemplateRenderer templates;
 
-    public NotificationController(NotificationService notifications, TemplateRenderer templates) {
+    public NotificationController(
+            NotificationService notifications,
+            NotificationRepository repository,
+            TemplateRenderer templates) {
         this.notifications = notifications;
+        this.repository = repository;
         this.templates = templates;
     }
 
@@ -52,10 +59,7 @@ public class NotificationController {
     @PostMapping("/test")
     public NotificationView test(
             @Valid @RequestBody TestRequest request, @AuthenticationPrincipal Jwt jwt) {
-        List<String> roles = jwt.getClaimAsStringList("roles");
-        if (roles == null || !roles.contains("ADMIN")) {
-            throw new BusinessException("FORBIDDEN", "Solo un administrador", HttpStatus.FORBIDDEN);
-        }
+        requireAdmin(jwt);
         Notification notification =
                 notifications.createAndAttempt(
                         null,
@@ -64,6 +68,35 @@ public class NotificationController {
                         "TEST",
                         templates.toJson(Map.of("shipmentId", "test")));
         return NotificationView.from(notification);
+    }
+
+    /**
+     * Fuerza un intento de envio sobre una notificacion pendiente.
+     *
+     * <p>Sirve cuando SMTP ya se recupero pero el reintento automatico aun no ha llegado.
+     */
+    @PostMapping("/{id}/retry")
+    public NotificationView retry(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt) {
+        requireAdmin(jwt);
+        return NotificationView.from(notifications.attemptNow(id));
+    }
+
+    /** Conteo por estado: lo consume el tablero de Grafana y el panel de administracion. */
+    @GetMapping("/stats")
+    public Map<String, Long> stats() {
+        Map<String, Long> stats = new LinkedHashMap<>();
+        for (Notification.Status status : Notification.Status.values()) {
+            stats.put(status.name(), repository.countByStatus(status));
+        }
+        stats.put("TOTAL", repository.count());
+        return stats;
+    }
+
+    private void requireAdmin(Jwt jwt) {
+        List<String> roles = jwt == null ? null : jwt.getClaimAsStringList("roles");
+        if (roles == null || !roles.contains("ADMIN")) {
+            throw new BusinessException("FORBIDDEN", "Solo un administrador", HttpStatus.FORBIDDEN);
+        }
     }
 
     public record NotificationView(

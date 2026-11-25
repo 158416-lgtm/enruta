@@ -1,11 +1,15 @@
 package com.enruta.auth.security;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.enruta.auth.domain.Role;
 import com.enruta.auth.domain.User;
 import com.nimbusds.jwt.SignedJWT;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.EnumSet;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -104,5 +108,41 @@ class JwtServiceTest {
                         path);
 
         assertThat(second.jwkKeyIds()).isEqualTo(first.jwkKeyIds());
+    }
+
+    @Test
+    void exposesTheConfiguredTtls() {
+        assertThat(jwtService.accessTtl()).isEqualTo(Duration.ofMinutes(15));
+        assertThat(jwtService.refreshTtl()).isEqualTo(Duration.ofDays(7));
+    }
+
+    @Test
+    void unreadableKeyPathFailsWithUncheckedIoException() throws Exception {
+        Path directory = tempDir.resolve("como-directorio");
+        Files.createDirectories(directory);
+
+        assertThatThrownBy(
+                        () ->
+                                new JwtService(
+                                        "http://localhost:18080",
+                                        Duration.ofMinutes(15),
+                                        Duration.ofDays(7),
+                                        directory.toString()))
+                .isInstanceOf(UncheckedIOException.class);
+    }
+
+    @Test
+    void corruptedKeyFileFailsFast() throws Exception {
+        Path file = tempDir.resolve("rota.json");
+        Files.writeString(file, "esto no es una llave RSA");
+
+        assertThatThrownBy(
+                        () ->
+                                new JwtService(
+                                        "http://localhost:18080",
+                                        Duration.ofMinutes(15),
+                                        Duration.ofDays(7),
+                                        file.toString()))
+                .isInstanceOf(IllegalStateException.class);
     }
 }

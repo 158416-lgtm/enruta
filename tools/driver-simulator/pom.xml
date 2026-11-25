@@ -39,6 +39,16 @@
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-maven-plugin</artifactId>
       </plugin>
+      <!-- El simulador es una herramienta de demostración, no un microservicio:
+           no entra en la métrica de cobertura del producto. Se prueba con el
+           laboratorio y con el escenario de concurrencia, no con tests unitarios. -->
+      <plugin>
+        <groupId>org.jacoco</groupId>
+        <artifactId>jacoco-maven-plugin</artifactId>
+        <configuration>
+          <skip>true</skip>
+        </configuration>
+      </plugin>
     </plugins>
   </build>
 </project>

@@ -100,4 +100,89 @@ class TrackingReadModelTest {
                         "dispatch.offer-created", "{\"shipmentId\":\"%s\"}".formatted(shipmentId)));
         verify(redis, org.mockito.Mockito.never()).opsForHash();
     }
+
+    @Test
+    void anEventWithoutPayloadIsIgnored() {
+        readModel.onEvent(
+                """
+                {"eventId":"%s","eventType":"shipment.created"}
+                """
+                        .formatted(UUID.randomUUID()));
+
+        verify(redis, org.mockito.Mockito.never()).opsForHash();
+    }
+
+    @Test
+    void aShipmentAssignedEventBindsDriverAndShipment() {
+        when(redis.opsForValue()).thenReturn(valueOps);
+        when(redis.opsForHash()).thenReturn(hashOps);
+
+        readModel.onEvent(
+                envelope(
+                        "shipment.assigned",
+                        "{\"shipmentId\":\"%s\",\"driverId\":\"%s\"}"
+                                .formatted(shipmentId, driverId)));
+
+        verify(valueOps)
+                .set(eq("driver:" + driverId + ":shipment"), eq(shipmentId), any(Duration.class));
+        verify(hashOps).put("shipment:" + shipmentId, "driverId", driverId);
+        verify(redis).expire(eq("shipment:" + shipmentId), any(Duration.class));
+    }
+
+    @Test
+    void anAssignmentWithoutDriverOnlyTouchesNothing() {
+        readModel.onEvent(
+                envelope(
+                        "dispatch.assigned",
+                        "{\"shipmentId\":\"%s\",\"driverId\":null}".formatted(shipmentId)));
+
+        verify(redis, org.mockito.Mockito.never()).opsForValue();
+        verify(redis, org.mockito.Mockito.never()).opsForHash();
+    }
+
+    @Test
+    void aDeliveredStatusReleasesTheDriver() {
+        when(redis.opsForHash()).thenReturn(hashOps);
+        when(hashOps.get("shipment:" + shipmentId, "driverId")).thenReturn(driverId);
+
+        readModel.onEvent(
+                envelope(
+                        "shipment.status-changed",
+                        "{\"shipmentId\":\"%s\",\"status\":\"DELIVERED\"}".formatted(shipmentId)));
+
+        verify(redis).delete("driver:" + driverId + ":shipment");
+    }
+
+    @Test
+    void aNonTerminalStatusKeepsTheDriver() {
+        readModel.onEvent(
+                envelope(
+                        "shipment.status-changed",
+                        "{\"shipmentId\":\"%s\",\"status\":\"IN_TRANSIT\"}".formatted(shipmentId)));
+
+        verify(redis, org.mockito.Mockito.never()).opsForHash();
+        verify(redis, org.mockito.Mockito.never()).delete(any(String.class));
+    }
+
+    @Test
+    void aDeliveredEventReleasesTheDriver() {
+        when(redis.opsForHash()).thenReturn(hashOps);
+        when(hashOps.get("shipment:" + shipmentId, "driverId")).thenReturn(driverId);
+
+        readModel.onEvent(
+                envelope("shipment.delivered", "{\"shipmentId\":\"%s\"}".formatted(shipmentId)));
+
+        verify(redis).delete("driver:" + driverId + ":shipment");
+    }
+
+    @Test
+    void aCancelledEventWithoutAssignedDriverDeletesNothing() {
+        when(redis.opsForHash()).thenReturn(hashOps);
+        when(hashOps.get("shipment:" + shipmentId, "driverId")).thenReturn(null);
+
+        readModel.onEvent(
+                envelope("shipment.cancelled", "{\"shipmentId\":\"%s\"}".formatted(shipmentId)));
+
+        verify(redis, org.mockito.Mockito.never()).delete(any(String.class));
+    }
 }

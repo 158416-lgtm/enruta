@@ -83,6 +83,7 @@ public class PositionService {
         }
 
         broadcaster.position(shipmentId, position);
+        appendTrail(shipmentId, position);
 
         double pickupLat = Double.parseDouble(shipment.get("pickupLat").toString());
         double pickupLng = Double.parseDouble(shipment.get("pickupLng").toString());
@@ -122,6 +123,31 @@ public class PositionService {
             if (dropoffConfirmed) {
                 publishGeofence(shipmentId, position.driverId(), "DROPOFF", toDropoff);
             }
+        }
+    }
+
+    /**
+     * Guarda los ultimos 200 puntos del envio para poder dibujar el recorrido.
+     *
+     * <p>La lista se recorta y caduca: el historial completo vive en el data warehouse, no en
+     * Redis. Asi el mapa no crece sin limite.
+     */
+    private void appendTrail(String shipmentId, Position position) {
+        try {
+            String key = "shipment:" + shipmentId + ":trail";
+            redis.opsForList()
+                    .leftPush(
+                            key,
+                            objectMapper.writeValueAsString(
+                                    Map.of(
+                                            "lat", position.lat(),
+                                            "lng", position.lng(),
+                                            "at", position.recordedAt().toString())));
+            redis.opsForList().trim(key, 0, 199);
+            redis.expire(key, Duration.ofHours(6));
+        } catch (Exception ex) {
+            log.debug(
+                    "no se pudo guardar el recorrido shipment={}: {}", shipmentId, ex.getMessage());
         }
     }
 

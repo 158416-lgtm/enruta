@@ -185,6 +185,33 @@ class AuthServiceTest {
     }
 
     @Test
+    void refreshRejectsTokensWhoseUserWasRemoved() {
+        User user = client();
+        RefreshToken stored =
+                new RefreshToken(user.getId(), "refresh-hash", Instant.now().plusSeconds(3600));
+        when(jwtService.hash("refresh-raw")).thenReturn("refresh-hash");
+        when(refreshTokens.findByTokenHash("refresh-hash")).thenReturn(Optional.of(stored));
+        when(users.findById(user.getId())).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.refresh("refresh-raw"))
+                .isInstanceOf(BusinessException.class)
+                .extracting(error -> ((BusinessException) error).getCode())
+                .isEqualTo("USER_NOT_FOUND");
+    }
+
+    @Test
+    void currentUserReturnsTheProfile() {
+        User user = client();
+        when(users.findById(user.getId())).thenReturn(Optional.of(user));
+
+        UserView view = service.currentUser(user.getId());
+
+        assertThat(view.id()).isEqualTo(user.getId());
+        assertThat(view.email()).isEqualTo("cliente@enruta.test");
+        assertThat(view.roles()).containsExactly("CLIENT");
+    }
+
+    @Test
     void currentUserFailsWhenItDoesNotExist() {
         UUID id = UUID.randomUUID();
         when(users.findById(id)).thenReturn(Optional.empty());

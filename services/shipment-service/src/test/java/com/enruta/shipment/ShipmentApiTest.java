@@ -173,6 +173,78 @@ class ShipmentApiTest {
                 .containsExactlyInAnyOrder("shipment.created", "shipment.status-changed");
     }
 
+    @Test
+    void listShowsOwnShipmentsToClientsAndEverythingToAdmins() throws Exception {
+        String cancelled = createShipment(clientId);
+        createShipment(clientId);
+        mockMvc.perform(post("/api/v1/shipments/{id}/cancel", cancelled).with(clientJwt()))
+                .andExpect(status().isOk());
+
+        // El cliente solo ve los suyos.
+        mockMvc.perform(get("/api/v1/shipments").param("size", "50").with(clientJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(2));
+
+        // El cliente puede filtrar por estado.
+        mockMvc.perform(get("/api/v1/shipments").param("status", "CANCELLED").with(clientJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].id").value(cancelled));
+
+        // El admin ve todo, con y sin filtro.
+        var admin = jwtFor(UUID.randomUUID(), "ADMIN");
+        mockMvc.perform(get("/api/v1/shipments").param("size", "50").with(admin))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(2));
+        mockMvc.perform(get("/api/v1/shipments").param("status", "CREATED").with(admin))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1));
+    }
+
+    @Test
+    void historyReturnsTheTimelineAndChecksPermissions() throws Exception {
+        String id = createShipment(clientId);
+
+        mockMvc.perform(get("/api/v1/shipments/{id}/history", id).with(clientJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].toStatus").value("CREATED"))
+                .andExpect(jsonPath("$[0].reason").value("envio creado"));
+
+        mockMvc.perform(
+                        get("/api/v1/shipments/{id}/history", id)
+                                .with(jwtFor(UUID.randomUUID(), "CLIENT")))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void onlyAdminsCanAssignManually() throws Exception {
+        String id = createShipment(clientId);
+        UUID driverId = UUID.randomUUID();
+
+        mockMvc.perform(
+                        post("/api/v1/shipments/{id}/assign", id)
+                                .param("driverId", driverId.toString())
+                                .with(clientJwt()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+
+        mockMvc.perform(
+                        post("/api/v1/shipments/{id}/assign", id)
+                                .param("driverId", driverId.toString())
+                                .with(jwtFor(UUID.randomUUID(), "ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("ASSIGNED"))
+                .andExpect(jsonPath("$.driverId").value(driverId.toString()));
+
+        // Un envio ya asignado no se puede volver a asignar.
+        mockMvc.perform(
+                        post("/api/v1/shipments/{id}/assign", id)
+                                .param("driverId", UUID.randomUUID().toString())
+                                .with(jwtFor(UUID.randomUUID(), "ADMIN")))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("ASSIGN_NOT_ALLOWED"));
+    }
+
     private String createShipment(UUID customerId) throws Exception {
         MvcResult result =
                 mockMvc.perform(

@@ -74,4 +74,60 @@ class TrackingBroadcasterTest {
 
         assertThat(broadcaster.subscribers("s1")).isZero();
     }
+
+    @Test
+    void closedSessionsReceiveNothing() throws Exception {
+        org.mockito.Mockito.when(session.isOpen()).thenReturn(false);
+        broadcaster.subscribe("s1", session);
+
+        broadcaster.status("s1", "DELIVERED");
+
+        verify(session, org.mockito.Mockito.never()).sendMessage(any(TextMessage.class));
+        assertThat(broadcaster.subscribers("s1")).isEqualTo(1);
+    }
+
+    @Test
+    void aFailedSendDropsTheSession() throws Exception {
+        org.mockito.Mockito.doThrow(new java.io.IOException("roto"))
+                .when(session)
+                .sendMessage(any(TextMessage.class));
+        broadcaster.subscribe("s1", session);
+
+        broadcaster.status("s1", "DELIVERED");
+
+        assertThat(broadcaster.subscribers("s1")).isZero();
+    }
+
+    @Test
+    void aSerializationFailureIsSwallowed() throws Exception {
+        com.fasterxml.jackson.databind.ObjectMapper brokenMapper =
+                org.mockito.Mockito.mock(com.fasterxml.jackson.databind.ObjectMapper.class);
+        org.mockito.Mockito.when(brokenMapper.writeValueAsString(any()))
+                .thenThrow(new com.fasterxml.jackson.core.JsonProcessingException("roto") {});
+        TrackingBroadcaster broken = new TrackingBroadcaster(brokenMapper);
+        broken.subscribe("s1", session);
+
+        broken.status("s1", "DELIVERED");
+
+        verify(session, org.mockito.Mockito.never()).sendMessage(any(TextMessage.class));
+        assertThat(broken.subscribers("s1")).isEqualTo(1);
+    }
+
+    @Test
+    void removingASessionDropsItFromEveryShipment() {
+        broadcaster.subscribe("s1", session);
+        broadcaster.subscribe("s2", session);
+
+        broadcaster.removeSession(session);
+
+        assertThat(broadcaster.subscribers("s1")).isZero();
+        assertThat(broadcaster.subscribers("s2")).isZero();
+    }
+
+    @Test
+    void unsubscribingAnUnknownShipmentIsANoOp() {
+        broadcaster.unsubscribe("desconocido", session);
+
+        assertThat(broadcaster.subscribers("desconocido")).isZero();
+    }
 }
