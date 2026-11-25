@@ -15,12 +15,14 @@ COMPOSE_FILE="$ROOT/infra/docker-compose.yml"
 OPEN_BROWSER=1
 FORCE_BUILD=0
 WITH_SIMULATOR=0
+START_TUNNEL=1
 
 for arg in "$@"; do
   case "$arg" in
     --no-browser) OPEN_BROWSER=0 ;;
     --build) FORCE_BUILD=1 ;;
     --sim) WITH_SIMULATOR=1 ;;
+    --no-tunnel) START_TUNNEL=0 ;;
     --stop)
       "$ROOT/scripts/run-local.sh" --stop
       fuser -k 5173/tcp >/dev/null 2>&1 || true
@@ -107,20 +109,47 @@ for port in 18080 18081 18082 18083 8084 8085 8086; do
   curl -sf -m 2 "localhost:${port}/actuator/health" >/dev/null 2>&1 && healthy=$((healthy + 1))
 done
 
-cat <<EOF
+# --- Tunel para el movil + resumen de URLs ------------------------------------
+TUNNEL_URL=""
+if [ "$START_TUNNEL" -eq 1 ]; then
+  echo "==> 6/6 Tunel para el movil (Cloudflare)"
+  TUNNEL_URL=$("$ROOT/scripts/tunel.sh" --url-only 2>/dev/null || true)
+  if [ -n "$TUNNEL_URL" ]; then
+    echo "    $TUNNEL_URL"
+  else
+    echo "    no disponible ahora (reintenta luego con ./scripts/tunel.sh)"
+  fi
+fi
 
-==========================================================
- EnRuta listo — ${healthy}/7 servicios sanos
-==========================================================
-  MAPA         http://localhost:5173
-  Grafana      http://localhost:3000
-  MailHog      http://localhost:8025
-  Prometheus   http://localhost:9090
+LAN_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+if [ -n "$TUNNEL_URL" ]; then
+  MOBILE_LINE="$TUNNEL_URL"
+  MOBILE_NOTE="(funciona con datos moviles; el GPS necesita HTTPS)"
+else
+  MOBILE_LINE="http://${LAN_IP}:5173"
+  MOBILE_NOTE="(solo en la misma red; sin HTTPS el GPS no funciona)"
+fi
 
-  crear un envio   ./scripts/demo.sh new
-  detener todo     ./scripts/start.sh --stop
-==========================================================
-EOF
+{
+  echo "=========================================================="
+  echo " EnRuta listo — ${healthy}/7 servicios sanos"
+  echo "=========================================================="
+  echo " MAPA (PC) ........... http://localhost:5173"
+  echo " MOVIL (repartidor) .. ${MOBILE_LINE}"
+  echo "                       ${MOBILE_NOTE}"
+  echo " GRAFANA ............. http://localhost:3000"
+  echo " MAILHOG ............. http://localhost:8025"
+  echo " PROMETHEUS .......... http://localhost:9090"
+  echo " API (gateway) ....... http://localhost:18080"
+  echo "=========================================================="
+  echo " crear un envio ...... ./scripts/demo.sh new"
+  echo " renovar link movil .. ./scripts/tunel.sh"
+  echo " ver los 7 servicios . ./scripts/ver-servicios.sh"
+  echo " detener todo ........ ./scripts/start.sh --stop"
+  echo "=========================================================="
+} | tee "$ROOT/URLS.txt"
+
+echo " (todas las URLs quedaron guardadas en URLS.txt)"
 
 if [ "$OPEN_BROWSER" -eq 1 ]; then
   if command -v xdg-open >/dev/null; then

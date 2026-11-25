@@ -1,0 +1,14 @@
+==========================================================
+ EnRuta — URLs
+==========================================================
+ MAPA (PC) ........... http://localhost:5173
+ MOVIL (repartidor) .. https://describe-auburn-limitations-die.trycloudflare.com
+ GRAFANA ............. http://localhost:3000
+ MAILHOG ............. http://localhost:8025
+ PROMETHEUS .......... http://localhost:9090
+ API (gateway) ....... http://localhost:18080
+==========================================================
+ crear envio ...... ./scripts/demo.sh new
+ renovar link ..... ./scripts/tunel.sh
+ detener todo ..... ./scripts/start.sh --stop
+==========================================================
