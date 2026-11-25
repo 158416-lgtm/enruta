@@ -142,6 +142,90 @@ class ShipmentServiceTest {
         verify(history, never()).save(any());
     }
 
+    @Test
+    void assignedDriverCanConfirmPickupManually() {
+        UUID customer = UUID.randomUUID();
+        UUID driver = UUID.randomUUID();
+        Shipment shipment = shipmentFor(customer, driver, ShipmentStatus.ASSIGNED);
+        when(shipments.findById(shipment.getId())).thenReturn(Optional.of(shipment));
+
+        var view = service.confirmPickup(shipment.getId(), driver, List.of("DRIVER"));
+
+        assertThat(view.status()).isEqualTo(ShipmentStatus.PICKED_UP);
+        verify(history).save(any());
+    }
+
+    @Test
+    void anotherDriverCannotConfirmPickup() {
+        Shipment shipment =
+                shipmentFor(UUID.randomUUID(), UUID.randomUUID(), ShipmentStatus.ASSIGNED);
+        when(shipments.findById(shipment.getId())).thenReturn(Optional.of(shipment));
+
+        assertThatThrownBy(
+                        () ->
+                                service.confirmPickup(
+                                        shipment.getId(), UUID.randomUUID(), List.of("DRIVER")))
+                .isInstanceOf(BusinessException.class)
+                .extracting(ex -> ((BusinessException) ex).getCode())
+                .isEqualTo("FORBIDDEN");
+    }
+
+    @Test
+    void pickupConfirmationRequiresAssignedStatus() {
+        Shipment shipment = shipmentFor(UUID.randomUUID(), null, ShipmentStatus.CREATED);
+        when(shipments.findById(shipment.getId())).thenReturn(Optional.of(shipment));
+
+        assertThatThrownBy(
+                        () ->
+                                service.confirmPickup(
+                                        shipment.getId(), UUID.randomUUID(), List.of("ADMIN")))
+                .isInstanceOf(BusinessException.class)
+                .extracting(ex -> ((BusinessException) ex).getCode())
+                .isEqualTo("PICKUP_NOT_ALLOWED");
+    }
+
+    @Test
+    void adminCanConfirmDeliveryAndCustomerGetsAnEmail() {
+        Shipment shipment =
+                shipmentFor(UUID.randomUUID(), UUID.randomUUID(), ShipmentStatus.IN_TRANSIT);
+        when(shipments.findById(shipment.getId())).thenReturn(Optional.of(shipment));
+
+        var view = service.confirmDelivery(shipment.getId(), UUID.randomUUID(), List.of("ADMIN"));
+
+        assertThat(view.status()).isEqualTo(ShipmentStatus.DELIVERED);
+        verify(outbox, times(3)).append(any(), anyString());
+    }
+
+    @Test
+    void deliveryConfirmationRequiresInTransitStatus() {
+        Shipment shipment =
+                shipmentFor(UUID.randomUUID(), UUID.randomUUID(), ShipmentStatus.PICKED_UP);
+        when(shipments.findById(shipment.getId())).thenReturn(Optional.of(shipment));
+
+        assertThatThrownBy(
+                        () ->
+                                service.confirmDelivery(
+                                        shipment.getId(), UUID.randomUUID(), List.of("ADMIN")))
+                .isInstanceOf(BusinessException.class)
+                .extracting(ex -> ((BusinessException) ex).getCode())
+                .isEqualTo("DELIVERY_NOT_ALLOWED");
+    }
+
+    @Test
+    void summaryCountsAllStatusesAndFiltersByCustomer() {
+        UUID customer = UUID.randomUUID();
+        when(shipments.countByStatus(any())).thenReturn(3L);
+        when(shipments.countByCustomerIdAndStatus(eq(customer), any())).thenReturn(1L);
+
+        var admin = service.summary(UUID.randomUUID(), List.of("ADMIN"));
+        var client = service.summary(customer, List.of("CLIENT"));
+
+        assertThat(admin).hasSize(ShipmentStatus.values().length).containsValue(3L);
+        assertThat(client).containsValue(1L);
+        verify(shipments, times(ShipmentStatus.values().length))
+                .countByCustomerIdAndStatus(eq(customer), any());
+    }
+
     private CreateShipmentRequest validRequest() {
         return new CreateShipmentRequest(
                 new CreateShipmentRequest.Coordinate(4.3449, -74.3674, "Parque Principal"),

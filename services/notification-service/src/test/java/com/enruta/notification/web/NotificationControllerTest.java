@@ -109,6 +109,34 @@ class NotificationControllerTest {
     }
 
     @Test
+    void adminCanCancelAPendingNotification() {
+        UUID id = UUID.randomUUID();
+        Notification notification =
+                new Notification(null, "EMAIL", "cliente@enruta.test", "TEST", "{}");
+        notification.markFailed("cancelada manualmente");
+        when(notifications.cancel(id)).thenReturn(notification);
+
+        assertThat(controller.cancel(id, jwtWith("ADMIN")).status()).isEqualTo("FAILED");
+    }
+
+    @Test
+    void nonAdminsCannotCancel() {
+        assertThatThrownBy(() -> controller.cancel(UUID.randomUUID(), jwtWith("CLIENT")))
+                .isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    void failedListsOnlyAdmins() {
+        Notification failed = new Notification(null, "EMAIL", "cliente@enruta.test", "TEST", "{}");
+        failed.markFailed("smtp caido");
+        when(notifications.failed()).thenReturn(List.of(failed));
+
+        assertThat(controller.failed(jwtWith("ADMIN"))).hasSize(1);
+        assertThatThrownBy(() -> controller.failed(jwtWith("CLIENT")))
+                .isInstanceOf(BusinessException.class);
+    }
+
+    @Test
     void statsCountEveryStatus() {
         when(repository.countByStatus(any())).thenReturn(2L);
         when(repository.count()).thenReturn(6L);

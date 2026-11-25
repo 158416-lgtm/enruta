@@ -60,7 +60,7 @@ desplegados con Docker y verificados de extremo a extremo sobre el casco urbano 
 bajo contenci\'on concurrente, propagar los cambios de estado sin perder eventos y rastrear el
 env\'io en tiempo real con GPS. La soluci\'on combina asignaci\'on con triple barrera anti-doble,
 patr\'on \emph{outbox} con relay transaccional, saga coreografiada, geocercas con hist\'eresis e
-idempotencia extremo a extremo. El sistema se valid\'o con 353 pruebas automatizadas (97,7\,\% de
+idempotencia extremo a extremo. El sistema se valid\'o con 367 pruebas automatizadas (97,7\,\% de
 cobertura de l\'ineas), prueba de concurrencia de 50 hilos con un \'unico ganador, ciclo completo
 \texttt{CREATED} $\rightarrow$ \texttt{DELIVERED} en $\sim$2 min con correo real entregado en un
 intento, ETA real OSRM de 2\,529 m / 273 s con cach\'e en la segunda llamada y plan B de 43 ms, y
@@ -795,6 +795,9 @@ GET /api/v1/shipments/\{id\} & shipment & jwt & estado e historial\\
 GET /api/v1/shipments/\{id\}/history & shipment & jwt & bitácora de estados\\
 POST /api/v1/shipments/\{id\}/cancel & shipment & jwt & cancelación con reglas por rol\\
 POST /api/v1/shipments/\{id\}/assign & shipment & ADMIN & asignación manual\\
+GET /api/v1/shipments/summary & shipment & jwt & conteo por estado\\
+POST /api/v1/shipments/\{id\}/confirm-pickup & shipment & jwt & recogida manual (sin GPS)\\
+POST /api/v1/shipments/\{id\}/confirm-delivery & shipment & jwt & entrega manual (sin GPS)\\
 POST /api/v1/drivers/\{id\}/location & dispatch & jwt & posición del conductor\\
 POST /api/v1/drivers/\{id\}/availability & dispatch & jwt & disponibilidad\\
 GET /api/v1/drivers/\{id\}/offers & dispatch & jwt & ofertas vigentes\\
@@ -816,6 +819,8 @@ GET /api/v1/eta/geocode & routing & jwt & Nominatim: dirección a coordenadas\\
 GET /api/v1/notifications & notification & jwt & correos de un envío\\
 GET /api/v1/notifications/\{id\} & notification & jwt & estado e intentos\\
 POST /api/v1/notifications/\{id\}/retry & notification & ADMIN & reintento manual\\
+POST /api/v1/notifications/\{id\}/cancel & notification & ADMIN & cancela una pendiente\\
+GET /api/v1/notifications/failed & notification & ADMIN & últimas 50 fallidas\\
 GET /api/v1/notifications/stats & notification & jwt & conteo por estado\\
 POST /api/v1/notifications/test & notification & ADMIN & correo de prueba\\
 WS /ws/tracking & tracking & jwt en query & posiciones en vivo\\
@@ -948,15 +953,15 @@ nunca se confía solo en el gateway.
 \midrule
 tracking-service & 70 & 97,9\,\%\\
 dispatch-service & 84 & 100,0\,\%\\
-shipment-service & 50 & 94,2\,\%\\
+shipment-service & 58 & 94,4\,\%\\
 auth-service & 41 & 95,3\,\%\\
-notification-service & 36 & 97,5\,\%\\
+notification-service & 42 & 97,6\,\%\\
 common & 32 & 100,0\,\%\\
 routing-eta-service & 29 & 97,8\,\%\\
 contracts & 4 & 100,0\,\%\\
 api-gateway & 3 & 90,0\,\%\\
 \midrule
-\textbf{Total (9 m\'odulos)} & \textbf{353} & \textbf{97,7\,\%}\\
+\textbf{Total (9 m\'odulos)} & \textbf{367} & \textbf{97,7\,\%}\\
 \bottomrule
 \end{tabular}
 \end{table*}
@@ -1076,7 +1081,7 @@ ETA e intentos de notificación.
 El sistema demuestra que los problemas dif\'iciles de la \'ultima milla no est\'an en el CRUD sino en
 la consistencia: asignar una sola vez, no perder eventos y sobrevivir a los fallos. Las tres
 barreras de asignaci\'on, el outbox y la saga son las piezas que sostienen esa garant\'ia, y est\'an
-respaldadas por 353 pruebas (97,7\,\%), prueba de concurrencia con un \'unico ganador, ciclo
+respaldadas por 367 pruebas (97,7\,\%), prueba de concurrencia con un \'unico ganador, ciclo
 completo en $\sim$2 min y correo entregado al primer intento.
 
 \subsection{Trabajo futuro}

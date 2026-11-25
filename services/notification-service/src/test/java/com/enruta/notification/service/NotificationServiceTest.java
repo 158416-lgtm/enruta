@@ -173,6 +173,46 @@ class NotificationServiceTest {
     }
 
     @Test
+    void cancelMarksAPendingNotificationAsFailed() {
+        stubSave();
+        Notification pending =
+                new Notification(UUID.randomUUID(), "EMAIL", "cliente@enruta.test", "TEST", "{}");
+        when(repository.findById(pending.getId())).thenReturn(java.util.Optional.of(pending));
+        NotificationService service = service(new RetryPolicy(3, List.of(Duration.ofSeconds(2))));
+
+        Notification cancelled = service.cancel(pending.getId());
+
+        assertThat(cancelled.getStatus()).isEqualTo(Notification.Status.FAILED);
+        assertThat(cancelled.getLastError()).contains("cancelada");
+        assertThat(cancelled.getNextAttemptAt()).isNull();
+        verify(repository).save(pending);
+    }
+
+    @Test
+    void cancelRejectsNotificationsThatAlreadyLeft() {
+        Notification sent =
+                new Notification(UUID.randomUUID(), "EMAIL", "cliente@enruta.test", "TEST", "{}");
+        sent.markSent();
+        when(repository.findById(sent.getId())).thenReturn(java.util.Optional.of(sent));
+        NotificationService service = service(new RetryPolicy(3, List.of(Duration.ofSeconds(2))));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.cancel(sent.getId()))
+                .isInstanceOf(com.enruta.common.error.BusinessException.class);
+    }
+
+    @Test
+    void failedReturnsTheLastFailedNotifications() {
+        Notification failed =
+                new Notification(UUID.randomUUID(), "EMAIL", "cliente@enruta.test", "TEST", "{}");
+        failed.markFailed("smtp caido");
+        when(repository.findTop50ByStatusOrderByCreatedAtDesc(Notification.Status.FAILED))
+                .thenReturn(List.of(failed));
+        NotificationService service = service(new RetryPolicy(3, List.of(Duration.ofSeconds(2))));
+
+        assertThat(service.failed()).containsExactly(failed);
+    }
+
+    @Test
     void dlqFailureDoesNotEscape() throws Exception {
         stubSave();
         org.mockito.Mockito.doThrow(new IllegalStateException("smtp caido"))

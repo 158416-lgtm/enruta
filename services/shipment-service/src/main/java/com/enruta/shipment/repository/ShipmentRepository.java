@@ -15,4 +15,8 @@ public interface ShipmentRepository extends JpaRepository<Shipment, UUID> {
 
     Page<Shipment> findByCustomerIdAndStatus(
             UUID customerId, ShipmentStatus status, Pageable pageable);
+
+    long countByStatus(ShipmentStatus status);
+
+    long countByCustomerIdAndStatus(UUID customerId, ShipmentStatus status);
 }

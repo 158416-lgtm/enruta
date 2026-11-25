@@ -245,6 +245,40 @@ class ShipmentApiTest {
                 .andExpect(jsonPath("$.code").value("ASSIGN_NOT_ALLOWED"));
     }
 
+    @Test
+    void summaryCountsShipmentsByStatus() throws Exception {
+        String cancelled = createShipment(clientId);
+        createShipment(clientId);
+        mockMvc.perform(post("/api/v1/shipments/{id}/cancel", cancelled).with(clientJwt()))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/v1/shipments/summary").with(clientJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.CREATED").value(1))
+                .andExpect(jsonPath("$.CANCELLED").value(1));
+    }
+
+    @Test
+    void assignedDriverCanConfirmPickupManually() throws Exception {
+        String id = createShipment(clientId);
+        UUID driverId = UUID.randomUUID();
+        var admin = jwtFor(UUID.randomUUID(), "ADMIN");
+        mockMvc.perform(
+                        post("/api/v1/shipments/{id}/assign", id)
+                                .param("driverId", driverId.toString())
+                                .with(admin))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/v1/shipments/{id}/confirm-pickup", id).with(clientJwt()))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(
+                        post("/api/v1/shipments/{id}/confirm-pickup", id)
+                                .with(jwtFor(driverId, "DRIVER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PICKED_UP"));
+    }
+
     private String createShipment(UUID customerId) throws Exception {
         MvcResult result =
                 mockMvc.perform(

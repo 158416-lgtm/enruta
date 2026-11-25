@@ -12,6 +12,8 @@ public interface NotificationRepository extends JpaRepository<Notification, UUID
 
     long countByStatus(Notification.Status status);
 
+    List<Notification> findTop50ByStatusOrderByCreatedAtDesc(Notification.Status status);
+
     /**
      * Reserva las notificaciones vencidas.
      *

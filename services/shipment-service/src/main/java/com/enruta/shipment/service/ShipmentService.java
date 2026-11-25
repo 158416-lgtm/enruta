@@ -13,7 +13,9 @@ import com.enruta.shipment.repository.ShipmentStatusHistoryRepository;
 import com.enruta.shipment.web.CreateShipmentRequest;
 import com.enruta.shipment.web.ShipmentView;
 import java.security.SecureRandom;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -91,6 +93,51 @@ public class ShipmentService {
         Shipment shipment = load(shipmentId);
         assertCanRead(shipment, actorId, roles);
         return history.findByShipmentIdOrderByOccurredAtAsc(shipmentId);
+    }
+
+    /**
+     * Confirmacion manual de la recogida.
+     *
+     * <p>El camino normal es la geocerca de tracking; este endpoint existe para cuando el GPS del
+     * repartidor falla y soporte necesita desbloquear el envio sin tocar la base a mano.
+     */
+    @Transactional
+    public ShipmentView confirmPickup(UUID shipmentId, UUID actorId, List<String> roles) {
+        Shipment shipment = load(shipmentId);
+        assertDriverOrAdmin(shipment, actorId, roles);
+        if (shipment.getStatus() != ShipmentStatus.ASSIGNED) {
+            throw BusinessException.conflict(
+                    "PICKUP_NOT_ALLOWED", "Solo se confirma la recogida de un envio asignado");
+        }
+        transition(shipment, ShipmentStatus.PICKED_UP, actorId, "recogida confirmada manualmente");
+        return ShipmentView.from(shipment, List.of());
+    }
+
+    /** Confirmacion manual de la entrega; dispara el correo al cliente igual que la geocerca. */
+    @Transactional
+    public ShipmentView confirmDelivery(UUID shipmentId, UUID actorId, List<String> roles) {
+        Shipment shipment = load(shipmentId);
+        assertDriverOrAdmin(shipment, actorId, roles);
+        if (shipment.getStatus() != ShipmentStatus.IN_TRANSIT) {
+            throw BusinessException.conflict(
+                    "DELIVERY_NOT_ALLOWED", "Solo se confirma la entrega de un envio en camino");
+        }
+        onDelivered(shipmentId);
+        return ShipmentView.from(load(shipmentId), List.of());
+    }
+
+    /** Conteo por estado para el tablero: el admin ve todo y el cliente solo lo suyo. */
+    @Transactional(readOnly = true)
+    public Map<String, Long> summary(UUID actorId, List<String> roles) {
+        Map<String, Long> counts = new LinkedHashMap<>();
+        for (ShipmentStatus status : ShipmentStatus.values()) {
+            counts.put(
+                    status.name(),
+                    roles.contains("ADMIN")
+                            ? shipments.countByStatus(status)
+                            : shipments.countByCustomerIdAndStatus(actorId, status));
+        }
+        return counts;
     }
 
     @Transactional
@@ -338,6 +385,17 @@ public class ShipmentService {
                         () ->
                                 BusinessException.notFound(
                                         "SHIPMENT_NOT_FOUND", "Envio inexistente"));
+    }
+
+    private void assertDriverOrAdmin(Shipment shipment, UUID actorId, List<String> roles) {
+        if (roles.contains("ADMIN")) {
+            return;
+        }
+        if (roles.contains("DRIVER") && actorId.equals(shipment.getDriverId())) {
+            return;
+        }
+        throw new BusinessException(
+                "FORBIDDEN", "Solo el conductor asignado o un administrador", HttpStatus.FORBIDDEN);
     }
 
     private void assertCanRead(Shipment shipment, UUID actorId, List<String> roles) {

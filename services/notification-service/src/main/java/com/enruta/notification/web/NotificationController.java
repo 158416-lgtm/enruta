@@ -81,6 +81,20 @@ public class NotificationController {
         return NotificationView.from(notifications.attemptNow(id));
     }
 
+    /** Cancela una notificacion pendiente antes de que el scheduler la reintente. */
+    @PostMapping("/{id}/cancel")
+    public NotificationView cancel(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt) {
+        requireAdmin(jwt);
+        return NotificationView.from(notifications.cancel(id));
+    }
+
+    /** Ultimas 50 notificaciones fallidas, para triage. */
+    @GetMapping("/failed")
+    public List<NotificationView> failed(@AuthenticationPrincipal Jwt jwt) {
+        requireAdmin(jwt);
+        return notifications.failed().stream().map(NotificationView::from).toList();
+    }
+
     /** Conteo por estado: lo consume el tablero de Grafana y el panel de administracion. */
     @GetMapping("/stats")
     public Map<String, Long> stats() {

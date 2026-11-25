@@ -101,6 +101,24 @@ public class NotificationService {
         return notification;
     }
 
+    /** Cancela una notificacion que aun no se ha enviado. */
+    @Transactional
+    public Notification cancel(UUID id) {
+        Notification notification = find(id);
+        if (notification.getStatus() != Notification.Status.PENDING) {
+            throw com.enruta.common.error.BusinessException.conflict(
+                    "NOTIFICATION_NOT_CANCELLABLE", "Solo se cancela una notificacion pendiente");
+        }
+        notification.markFailed("cancelada manualmente");
+        return repository.save(notification);
+    }
+
+    /** Ultimas notificaciones fallidas, para triage desde el panel de administracion. */
+    @Transactional(readOnly = true)
+    public List<Notification> failed() {
+        return repository.findTop50ByStatusOrderByCreatedAtDesc(Notification.Status.FAILED);
+    }
+
     @Transactional(readOnly = true)
     public List<Notification> byShipment(UUID shipmentId) {
         return repository.findByShipmentIdOrderByCreatedAtDesc(shipmentId);

@@ -135,6 +135,23 @@ public class ShipmentController {
         return shipments.assign(id, driverId, UUID.fromString(jwt.getSubject()));
     }
 
+    /** Alternativa a la geocerca cuando el GPS del repartidor no funciona. */
+    @PostMapping("/{id}/confirm-pickup")
+    public ShipmentView confirmPickup(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt) {
+        return shipments.confirmPickup(id, UUID.fromString(jwt.getSubject()), roles(jwt));
+    }
+
+    @PostMapping("/{id}/confirm-delivery")
+    public ShipmentView confirmDelivery(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt) {
+        return shipments.confirmDelivery(id, UUID.fromString(jwt.getSubject()), roles(jwt));
+    }
+
+    /** Conteo por estado para el tablero de operacion. */
+    @GetMapping("/summary")
+    public java.util.Map<String, Long> summary(@AuthenticationPrincipal Jwt jwt) {
+        return shipments.summary(UUID.fromString(jwt.getSubject()), roles(jwt));
+    }
+
     public record HistoryView(
             Long id,
             String fromStatus,

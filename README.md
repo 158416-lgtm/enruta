@@ -49,7 +49,7 @@ Verificación rápida: `./scripts/preflight.sh`
 | Mínimo 3 microservicios | **7**: gateway, auth, shipment, dispatch, tracking, routing-eta y notification |
 | Una base de datos | PostgreSQL 16 con 4 bases (`authdb`, `shipmentdb`, `dispatchdb`, `notifdb`), una por servicio que necesita persistencia |
 | Sistema de notificación | `notification-service`: fila persistida + reintentos con backoff + DLQ en Kafka + correo real (MailHog en local, SMTP en producción) y endpoints de prueba, reintento manual y estadísticas |
-| 5 APIs no-CRUD por microservicio | auth 6, shipment 6, dispatch 7, tracking 5, routing 6, notification 5 (ver [API disponible](#api-disponible)) |
+| 5 APIs no-CRUD por microservicio | auth 6, shipment 9 (6 no-CRUD), dispatch 7, tracking 5, routing 6, notification 7 (5 no-CRUD). Ver [API disponible](#api-disponible) |
 | Cobertura de pruebas ≥ 90 % | `mvn verify` + [`scripts/coverage.sh`](scripts/coverage.sh) (líneas, JaCoCo) |
 | Mínimo 2 APIs externas | **OSRM** (rutas/ETA/matriz) y **Nominatim** (geocodificación), ambas de OpenStreetMap |
 | Carga y estrés, p95 ≤ 500 ms | [`load/ab.sh`](load/ab.sh) + resultados en [`docs/carga.md`](docs/carga.md) |
@@ -224,7 +224,7 @@ Comprobado en esta máquina, no solo compilado:
 
 | Elemento | Resultado |
 |---|---|
-| Build | `mvn verify` verde, 12 módulos, **353 tests** y **97,7 % de cobertura de líneas** (9 módulos medidos; excluye arranque/configuración/DTOs/seeders y el simulador de demo) |
+| Build | `mvn verify` verde, 12 módulos, **367 tests** y **97,7 % de cobertura de líneas** (9 módulos medidos; excluye arranque/configuración/DTOs/seeders y el simulador de demo) |
 | Kafka | healthy; 9 tópicos creados (`tracking.gps.raw` con 6 particiones, retención 1 h) |
 | PostgreSQL | healthy; 4 bases (`authdb`, `shipmentdb`, `dispatchdb`, `notifdb`) |
 | Redis / MailHog | healthy |
@@ -239,7 +239,7 @@ Comprobado en esta máquina, no solo compilado:
 | S5 reintentos | MailHog apagado → 3 intentos (2s, 3s, 5s) → `FAILED` + mensaje en `notification.commands.dlq` con destinatario y error |
 | S6 frontend | `vite build` OK; login por proxy y listado de envíos verificado contra el gateway |
 | S6 observabilidad | Prometheus **8/8 targets UP**; dashboard de Grafana provisionado |
-| S7 entrega | **353 tests** en verde, cobertura **97,7 %**, notificación `SENT` verificada en MailHog, p95 **≤ 46 ms** con 20 concurrentes y **2 APIs externas** (OSRM + Nominatim) |
+| S7 entrega | **367 tests** en verde, cobertura **97,7 %**, notificación `SENT` verificada en MailHog, p95 **≤ 46 ms** con 20 concurrentes y **2 APIs externas** (OSRM + Nominatim) |
 
 > **Docker 29 + Testcontainers:** el cliente de Testcontainers usa API 1.32 y Docker 29 exige
 > 1.44. En esta máquina se resolvió con `~/.docker-java.properties` → `api.version=1.44`.
@@ -271,8 +271,11 @@ Comprobado en esta máquina, no solo compilado:
 | GET | `/api/v1/shipments` | página filtrable por estado (cliente ve lo suyo; admin ve todo) |
 | GET | `/api/v1/shipments/{id}` | dueño, conductor asignado o admin |
 | GET | `/api/v1/shipments/{id}/history` | bitácora de estados con actor y motivo |
+| GET | `/api/v1/shipments/summary` | conteo por estado (admin global; cliente lo suyo) |
 | POST | `/api/v1/shipments/{id}/cancel` | cliente hasta `ASSIGNED`; admin hasta `IN_TRANSIT` |
 | POST | `/api/v1/shipments/{id}/assign` | asignación manual, solo ADMIN (`?driverId=`) |
+| POST | `/api/v1/shipments/{id}/confirm-pickup` | recogida manual si falla el GPS (conductor o admin) |
+| POST | `/api/v1/shipments/{id}/confirm-delivery` | entrega manual si falla el GPS (conductor o admin) |
 | POST | `/api/v1/drivers/{id}/location` | el conductor reporta posición (202) |
 | POST | `/api/v1/drivers/{id}/availability` | `AVAILABLE` / `BUSY` / `OFFLINE` |
 | GET | `/api/v1/drivers/{id}/offers` | ofertas vigentes del conductor |
@@ -295,6 +298,8 @@ Comprobado en esta máquina, no solo compilado:
 | GET | `/api/v1/notifications?shipmentId=` | historial de notificaciones del envío |
 | GET | `/api/v1/notifications/{id}` | estado, intentos y último error |
 | POST | `/api/v1/notifications/{id}/retry` | reintento manual, solo ADMIN |
+| POST | `/api/v1/notifications/{id}/cancel` | cancela una notificación pendiente, solo ADMIN |
+| GET | `/api/v1/notifications/failed` | últimas 50 fallidas para triage, solo ADMIN |
 | GET | `/api/v1/notifications/stats` | conteo por estado (`PENDING`, `SENT`, `FAILED`) |
 | POST | `/api/v1/notifications/test` | solo ADMIN; encola un correo de prueba |
 
